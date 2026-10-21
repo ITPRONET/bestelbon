@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   // Printers: is er minstens één online? Anders pauzeren we (zie stroomuitval-regels).
   const { data: printers } = await db.from("printers").select("id, role, copies, last_seen_at").eq("restaurant_id", r.id);
   const online = (printers ?? []).filter((p) => p.last_seen_at && Date.now() - new Date(p.last_seen_at).getTime() < PRINTER_TIMEOUT_MS);
-  const allowWithout = process.env.ALLOW_ORDERS_WITHOUT_PRINTER === "true";
+  const allowWithout = ["true", "1", "yes", "ja"].includes((process.env.ALLOW_ORDERS_WITHOUT_PRINTER ?? "").trim().replace(/^["']|["']$/g, "").toLowerCase());
   if (!online.length && !allowWithout) {
     return NextResponse.json({ error: "Online bestellen is even niet mogelijk. Bel de zaak rechtstreeks." }, { status: 503 });
   }
