@@ -4,7 +4,10 @@ import type { PanelRestaurant } from "@/lib/panel";
 const TABS = [
   ["", "Bestellingen"],
   ["verkoop", "Verkoop"],
+  ["menu", "Menu"],
   ["printers", "Printers"],
+  ["publicatie", "Publicatie"],
+  ["instellingen", "Instellingen"],
 ] as const;
 
 export default function PanelNav({ active, restaurants, current }: { active: string; restaurants: PanelRestaurant[]; current: PanelRestaurant | null }) {
