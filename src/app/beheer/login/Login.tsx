@@ -9,8 +9,8 @@ export default function Login() {
   async function send(e: React.FormEvent) {
     e.preventDefault(); setError("");
     const sb = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: `${location.origin}/auth/callback`, shouldCreateUser: false } });
-    if (error) setError("Dit e-mailadres is niet gekend. Neem contact op met info@bestelbon.eu."); else setSent(true);
+    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: `${location.origin}/auth/callback`, shouldCreateUser: true } });
+    if (error) setError("Inloggen lukt nu niet. Probeer het over een minuut opnieuw."); else setSent(true);
   }
   return (
     <main className="wrap" style={{ maxWidth: 420, paddingBlock: 60, display: "grid", gap: 14 }}>
