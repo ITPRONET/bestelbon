@@ -44,6 +44,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   const job = await nextJob(p.id);
   if (!job) return new NextResponse("No job", { status: 404 });
 
+  if (!job.order_id) {
+    const stamp = new Date().toLocaleString("nl-BE", { timeZone: "Europe/Brussels" });
+    const text = ["################### TESTAFDRUK ###################", "", "   BestelBon werkt op deze printer.", `   ${stamp}`, "", "   Bestellingen printen hier automatisch.", "", "             BestelBon - bestelbon.eu", "", ""].join("\n");
+    await db.from("print_jobs").update({ status: "opgehaald", fetched_at: new Date().toISOString(), attempts: job.attempts + 1 }).eq("id", job.id);
+    return new NextResponse(text, { headers: { "Content-Type": "text/plain; charset=utf-8", "X-Star-Cut": "full; feed=true", "Cache-Control": "no-store" } });
+  }
   const { data: o } = await db.from("orders")
     .select("day_number, created_at, mode, requested_time, payment_method, payment_status, total_cents, delivery_fee_cents, customer_name, customer_phone, address, postcode, city, note, restaurants ( name )")
     .eq("id", job.order_id).single();
@@ -75,6 +81,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ token
   if (code.startsWith("2")) {
     const now = new Date().toISOString();
     await db.from("print_jobs").update({ status: "geprint", printed_at: now }).eq("id", job.id);
+    if (!job.order_id) return new NextResponse("OK");
     const { count } = await db.from("print_jobs").select("id", { count: "exact", head: true })
       .eq("order_id", job.order_id).neq("status", "geprint");
     if (!count) await db.from("orders").update({ status: "geprint", printed_at: now }).eq("id", job.order_id).neq("status", "geprint");

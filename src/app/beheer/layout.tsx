@@ -4,9 +4,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <>
       <header className="top"><div className="wrap">
         <Link className="logo" href="/beheer">Bestel<b>Bon</b></Link>
-        <nav style={{ display: "flex", gap: 14 }}><Link href="/beheer" style={{ color: "#fff" }}>Bestellingen</Link><Link href="/beheer/printers" style={{ color: "#fff" }}>Printers</Link></nav>
+        <form action="/auth/uitloggen" method="post"><button className="btn btn-ghost-dark">Uitloggen</button></form>
       </div></header>
-      <main className="wrap" style={{ paddingBlock: 24, display: "grid", gap: 16 }}>{children}</main>
+      <main className="wrap" style={{ paddingBlock: 20, display: "grid", gap: 16 }}>{children}</main>
     </>
   );
 }
