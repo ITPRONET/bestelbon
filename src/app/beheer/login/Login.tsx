@@ -27,7 +27,7 @@ export default function Login() {
       if (error) { setError(message(error)); setBusy(false); return; }
       router.push("/beheer"); router.refresh();
     } else {
-      const { error } = await sb().auth.signInWithOtp({ email, options: { emailRedirectTo: `${location.origin}/auth/callback`, shouldCreateUser: true } });
+      const { error } = await sb().auth.signInWithOtp({ email, options: { emailRedirectTo: `${location.origin}/auth/callback`, shouldCreateUser: false } });
       if (error) setError(message(error)); else setSent(true);
       setBusy(false);
     }
