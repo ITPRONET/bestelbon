@@ -4,6 +4,7 @@ import { adminOnly, TYPES } from "@/lib/admin";
 import { eur } from "@/lib/money";
 import { normVat } from "@/lib/vat";
 import { TERMS_VERSION } from "@/lib/legal";
+import { RESERVED_SLUGS } from "@/lib/reserved";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Nieuwe klant" };
@@ -23,6 +24,7 @@ async function create(f: FormData) {
   const zaak = s(f, "restaurant") || s(f, "legal_name");
   const slug = slugify(s(f, "slug") || zaak);
   if (slug.length < 3) back("slug");
+  if (RESERVED_SLUGS.has(slug)) back("slugbezet");
   const { data: taken } = await db.from("restaurants").select("id").eq("slug", slug).maybeSingle();
   if (taken) back("slugbezet");
   const { data: dup } = await db.from("companies").select("id").eq("vat_number", vat.display).maybeSingle();
