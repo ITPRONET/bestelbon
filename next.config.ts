@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // WordPress uses trailing slashes; let those requests pass through unchanged.
+  skipTrailingSlashRedirect: true,
   serverExternalPackages: ["@resvg/resvg-js"],
   outputFileTracingIncludes: {
     "/api/cloudprnt/[token]": ["./src/assets/fonts/**"],
