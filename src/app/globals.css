@@ -240,3 +240,5 @@ input[type=color]{height:42px;padding:3px}
 .plan[aria-pressed="true"]{border-color:var(--accent);background:#fff}
 .plan b{font-size:18px}.plan span{font-weight:700;font-size:20px}.plan small{color:var(--muted);font-weight:400;font-size:13px}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.bonimg{width:300px;max-width:100%;height:auto;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 6px 18px #0b10331a;padding:6px;image-rendering:auto}
+@media print{.bongrid{display:block}.bonimg{width:72mm;box-shadow:none;border:0;border-radius:0;padding:0;display:block;break-inside:avoid;margin:0 auto 8mm}}

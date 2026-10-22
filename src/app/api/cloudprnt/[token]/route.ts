@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { adminDb } from "@/lib/supabase";
 import { kitchenTicket, deliveryTicket, type TicketOrder, type TicketLine } from "@/lib/ticket";
+import { ticketPng, testPng } from "@/lib/ticket-image";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,22 +33,26 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   await adminDb().from("printers").update({ last_seen_at: new Date().toISOString() }).eq("id", p.id);
   const job = await nextJob(p.id);
   return NextResponse.json(
-    job ? { jobReady: true, mediaTypes: ["text/plain"], deleteMethod: "DELETE" } : { jobReady: false },
+    job ? { jobReady: true, mediaTypes: ["image/png", "text/plain"], deleteMethod: "DELETE" } : { jobReady: false },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
 
-export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const db = adminDb();
   const p = await printerFor((await params).token);
   if (!p) return new NextResponse("Not found", { status: 404 });
   const job = await nextJob(p.id);
   if (!job) return new NextResponse("No job", { status: 404 });
+  // The printer asks for the media type it picked from our list; graphic receipts unless it wants text.
+  const asText = (new URL(req.url).searchParams.get("type") ?? "image/png").startsWith("text/");
+  const IMG = { "Content-Type": "image/png", "X-Star-Cut": "full; feed=true", "X-Star-ImageDitherPattern": "none", "Cache-Control": "no-store" };
 
   if (!job.order_id) {
     const stamp = new Date().toLocaleString("nl-BE", { timeZone: "Europe/Brussels" });
     const text = ["################### TESTAFDRUK ###################", "", "   BestelBon werkt op deze printer.", `   ${stamp}`, "", "   Bestellingen printen hier automatisch.", "", "             BestelBon - bestelbon.eu", "", ""].join("\n");
     await db.from("print_jobs").update({ status: "opgehaald", fetched_at: new Date().toISOString(), attempts: job.attempts + 1 }).eq("id", job.id);
+    if (!asText) return new NextResponse(new Uint8Array(await testPng()), { headers: IMG });
     return new NextResponse(text, { headers: { "Content-Type": "text/plain; charset=utf-8", "X-Star-Cut": "full; feed=true", "Cache-Control": "no-store" } });
   }
   const { data: o } = await db.from("orders")
@@ -59,12 +64,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   const late = Date.now() - new Date(job.created_at).getTime() > LATE_MS;
   const name = (o.restaurants as unknown as { name: string } | null)?.name ?? "";
   const order = { ...(o as unknown as TicketOrder), late };
-  const text = job.kind === "bezorging" ? deliveryTicket(name, order, (lines ?? []) as TicketLine[]) : kitchenTicket(name, order, (lines ?? []) as TicketLine[]);
+  const ls = (lines ?? []) as TicketLine[];
+  const body = asText
+    ? (job.kind === "bezorging" ? deliveryTicket(name, order, ls) : kitchenTicket(name, order, ls))
+    : new Uint8Array(await ticketPng(job.kind === "bezorging" ? "bezorging" : "keuken", name, order, ls));
 
   await db.from("print_jobs").update({ status: "opgehaald", fetched_at: new Date().toISOString(), attempts: job.attempts + 1 }).eq("id", job.id);
   if (late) await db.from("orders").update({ late_print: true }).eq("id", job.order_id);
 
-  return new NextResponse(text, {
+  if (!asText) return new NextResponse(body, { headers: IMG });
+  return new NextResponse(body, {
     headers: { "Content-Type": "text/plain; charset=utf-8", "X-Star-Cut": "full; feed=true", "Cache-Control": "no-store" },
   });
 }

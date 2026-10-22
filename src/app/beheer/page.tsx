@@ -2,7 +2,7 @@ import Link from "next/link";
 import PanelNav from "@/components/PanelNav";
 import { panel, today, addDays, longDate } from "@/lib/panel";
 import { eur } from "@/lib/money";
-import { kitchenTicket, deliveryTicket, type TicketOrder, type TicketLine } from "@/lib/ticket";
+import type { TicketOrder, TicketLine } from "@/lib/ticket";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Bestellingen" };
@@ -63,8 +63,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
                 <p className="muted">{o.requested_time} · {o.payment_method === "online" ? "online betaald" : "cash of kaart bij " + (o.mode === "levering" ? "levering" : "afhaling")}</p>
               </div>
               <div className="bons">
-                <pre className="bon">{kitchenTicket(current.name, o, o.order_lines)}</pre>
-                {o.mode === "levering" && <pre className="bon">{deliveryTicket(current.name, o, o.order_lines)}</pre>}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img className="bonimg" loading="lazy" src={`/beheer/bon/${o.id}?soort=keuken`} alt={`Keukenbon #${o.day_number}`} />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {o.mode === "levering" && <img className="bonimg" loading="lazy" src={`/beheer/bon/${o.id}?soort=bezorging`} alt={`Bezorgbon #${o.day_number}`} />}
               </div>
             </div>
           </details>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { panel, today, addDays, longDate } from "@/lib/panel";
-import { kitchenTicket, deliveryTicket, type TicketOrder, type TicketLine } from "@/lib/ticket";
+import type { TicketOrder, TicketLine } from "@/lib/ticket";
 import PrintButton from "./PrintButton";
 
 export const dynamic = "force-dynamic";
@@ -14,9 +14,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
   const dag = sp.dag && sp.dag >= min && sp.dag <= t ? sp.dag : t;
   const soort = sp.soort === "keuken" || sp.soort === "bezorging" ? sp.soort : "alle";
   const { data } = await db.from("orders")
-    .select("day_number, created_at, mode, requested_time, payment_method, payment_status, total_cents, delivery_fee_cents, customer_name, customer_phone, address, postcode, city, note, late_print, order_lines ( item_name, options, qty, unit_cents )")
+    .select("id, day_number, created_at, mode, requested_time, payment_method, payment_status, total_cents, delivery_fee_cents, customer_name, customer_phone, address, postcode, city, note, late_print, order_lines ( item_name, options, qty, unit_cents )")
     .eq("restaurant_id", current.id).eq("business_day", dag).order("created_at");
-  const rows = (data ?? []) as unknown as (TicketOrder & { late_print: boolean; order_lines: TicketLine[] })[];
+  const rows = (data ?? []) as unknown as (TicketOrder & { id: string; late_print: boolean; order_lines: TicketLine[] })[];
   const base = `/beheer/bonnen?zaak=${current.slug}&dag=${dag}`;
   return (
     <>
@@ -32,10 +32,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
       </div>
       <div className="bongrid">
         {rows.map((o) => {
-          const ord = { ...o, late: o.late_print };
           return [
-            soort !== "bezorging" && <pre className="bon" key={`k${o.day_number}`}>{kitchenTicket(current.name, ord, o.order_lines)}</pre>,
-            soort !== "keuken" && o.mode === "levering" && <pre className="bon" key={`b${o.day_number}`}>{deliveryTicket(current.name, ord, o.order_lines)}</pre>,
+            // eslint-disable-next-line @next/next/no-img-element
+            soort !== "bezorging" && <img className="bonimg" key={`k${o.id}`} src={`/beheer/bon/${o.id}?soort=keuken`} alt={`Keukenbon #${o.day_number}`} />,
+            // eslint-disable-next-line @next/next/no-img-element
+            soort !== "keuken" && o.mode === "levering" && <img className="bonimg" key={`b${o.id}`} src={`/beheer/bon/${o.id}?soort=bezorging`} alt={`Bezorgbon #${o.day_number}`} />,
           ];
         })}
       </div>
