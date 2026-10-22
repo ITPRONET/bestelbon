@@ -216,12 +216,15 @@ input[type=color]{height:42px;padding:3px}
 .hours td{padding:3px 0}
 @media (max-width:640px){.shop-head .wrap{flex-wrap:wrap}.hours{margin-left:0}.hours table{left:0;right:auto}}
 .hgrid{display:grid;gap:6px}
-.hrow{display:grid;grid-template-columns:92px 96px 1fr 1fr;gap:8px;align-items:center;font-size:14px}
+.stack2{display:grid;gap:16px;grid-template-columns:minmax(0,1fr);align-items:start}
+.stack2>*{min-width:0}
+.hrow{display:grid;grid-template-columns:100px 110px minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:center;font-size:14px}
 .hrow b{text-transform:capitalize}
-.hshift{display:flex;gap:4px;align-items:center}
+.hshift{display:flex;gap:4px;align-items:center;min-width:0}
+.hshift input{flex:1 1 0;width:0}
 .hshift input,.zgrid input{background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px;min-width:0;width:100%}
 .zgrid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);gap:6px;align-items:center}
-@media (max-width:640px){.hrow{grid-template-columns:1fr auto}.hshift{grid-column:1/-1}}
+@media (max-width:720px){.hrow{grid-template-columns:1fr auto;row-gap:6px}.hrow .hshift{grid-column:1/-1}.hgrid{gap:14px}}
 .legal{max-width:780px;padding-block:24px 60px}
 .legal h1{margin:8px 0 0;font-size:30px}
 .legal h2{font-size:19px;margin:28px 0 8px}

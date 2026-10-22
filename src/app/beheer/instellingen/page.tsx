@@ -156,7 +156,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
           )}
         </section>
       </div>
-      <div className="sgrid">
+      <div className="stack2">
         <form action={saveHours} className="panel" id="uren" style={{ display: "grid", gap: 12, alignContent: "start" }}>
           <input type="hidden" name="rid" value={r.id} />
           <h2 className="h2">Openingsuren</h2>
@@ -187,8 +187,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
             {[...zoneRows, ...Array.from({ length: Math.max(2, 4 - zoneRows.length) }, () => null)].map((z, i) => (
               <div key={i} style={{ display: "contents" }}>
                 <input name={`pc_${i}`} defaultValue={z?.pcs.join(", ") ?? ""} placeholder={i === 0 ? "2180, 2170" : ""} aria-label="Postcodes" />
-                <input name={`fee_${i}`} defaultValue={z ? fromCents(z.fee) : ""} inputMode="decimal" placeholder="2,50" aria-label="Leverkost" />
-                <input name={`min_${i}`} defaultValue={z ? fromCents(z.min) : ""} inputMode="decimal" placeholder="15,00" aria-label="Minimum" />
+                <input name={`fee_${i}`} defaultValue={z ? fromCents(z.fee) : ""} inputMode="decimal" placeholder={i === 0 ? "2,50" : ""} aria-label="Leverkost" />
+                <input name={`min_${i}`} defaultValue={z ? fromCents(z.min) : ""} inputMode="decimal" placeholder={i === 0 ? "15,00" : ""} aria-label="Minimum" />
               </div>
             ))}
           </div>
