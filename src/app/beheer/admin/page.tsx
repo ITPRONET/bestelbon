@@ -10,12 +10,13 @@ export const metadata = { title: "Beheerder" };
 export default async function Page({ searchParams }: { searchParams: Promise<{ q?: string; status?: string }> }) {
   const sp = await searchParams;
   const db = await adminOnly();
-  const [{ data: cos }, { data: invs }, { data: prices }, { data: inst }, { data: printers }] = await Promise.all([
+  const [{ data: cos }, { data: invs }, { data: prices }, { data: inst }, { data: printers }, { count: newReq }] = await Promise.all([
     db.from("companies").select("id, legal_name, vat_number, city, email, plan, status, started_on, restaurants(id, name, slug)").order("legal_name"),
     db.from("invoices").select("company_id, status, due_on, total_cents"),
     db.from("prices").select("key, cents"),
     db.from("installations").select("status"),
     db.from("printers").select("restaurant_id, last_seen_at"),
+    db.from("signups").select("id", { count: "exact", head: true }).eq("status", "nieuw"),
   ]);
   const price = (k: string) => prices?.find((p) => p.key === k)?.cents ?? 0;
   const live = (cos ?? []).filter((c) => c.status === "actief" || c.status === "achterstallig");
@@ -29,6 +30,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
     <>
       <AdminNav active="" />
       <h1 className="ph">Overzicht</h1>
+      {!!newReq && <Link href="/beheer/admin/aanvragen" className="alert" style={{ textDecoration: "none" }}>{newReq === 1 ? "1 nieuwe aanmelding" : `${newReq} nieuwe aanmeldingen`} wacht op je. Bekijk →</Link>}
       <div className="kpis">
         <div className="kpi"><span>Actieve abonnementen</span><b>{live.length}</b><small>{live.filter((c) => c.plan === "pro").length} Pro · {live.filter((c) => c.plan !== "pro").length} Standaard</small></div>
         <div className="kpi"><span>Maandomzet (excl. btw)</span><b>{eur(mrr)}</b><small>{eur(mrr * 12)} per jaar</small></div>

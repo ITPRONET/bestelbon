@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Menu, Item, CartLine } from "@/lib/types";
@@ -125,7 +126,7 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
             </div>
           </>}
           <label className="field">Opmerking<input value={f.note} onChange={set("note")} placeholder="bv. bel aan bij nr. 2" /></label>
-          <p className="muted" style={{ margin: 0, fontSize: 14 }}>Betalen bij {mode === "levering" ? "levering" : "afhaling"}.</p>
+          <p className="muted" style={{ margin: 0, fontSize: 14 }}>Betalen bij {mode === "levering" ? "levering" : "afhaling"}. Je gegevens dienen alleen voor deze bestelling en worden na 30 dagen gewist (<Link href="/privacy" target="_blank">privacy</Link>).</p>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }} className="muted"><span>Subtotaal</span><span className="num">{eur(sub)}</span></div>
           {mode === "levering" && <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }} className="muted"><span>Leverkost</span><span className="num">{eur(fee)}</span></div>}
           <div className="total"><span>Totaal</span><span className="num">{eur(sub + fee)}</span></div>
@@ -139,6 +140,7 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
           <button className="btn btn-primary" disabled={!cart.length || tooLow || outZone || busy || !canOrder} onClick={order}>{busy ? "Bezig…" : "Bestelling plaatsen"}</button>
         </aside>
       </main>
+      <footer className="wrap shop-foot"><span>Bestellen via BestelBon</span><Link href="/privacy">Privacy</Link></footer>
       {picking && <Options item={picking} onClose={() => setPicking(null)} onAdd={(ids) => { add(picking, ids); setPicking(null); }} />}
     </div>
   );

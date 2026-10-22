@@ -222,3 +222,18 @@ input[type=color]{height:42px;padding:3px}
 .hshift input,.zgrid input{background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px;min-width:0;width:100%}
 .zgrid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);gap:6px;align-items:center}
 @media (max-width:640px){.hrow{grid-template-columns:1fr auto}.hshift{grid-column:1/-1}}
+.legal{max-width:780px;padding-block:24px 60px}
+.legal h1{margin:8px 0 0;font-size:30px}
+.legal h2{font-size:19px;margin:28px 0 8px}
+.legal h3{font-size:16px;margin:16px 0 6px}
+.legal li{margin-bottom:6px}
+.legal .tbl th{text-transform:none;font-size:14px;color:var(--text);letter-spacing:0;vertical-align:top;width:120px}
+.legal-nav{display:flex;gap:14px;flex-wrap:wrap}
+.legal-nav a{color:var(--muted)}
+.shop-foot{padding:24px 0 40px;font-size:13px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap}
+.shop-foot a{color:inherit}
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.plan{display:grid;gap:4px;text-align:left;background:var(--bg);border:2px solid var(--line);border-radius:12px;padding:14px}
+.plan[aria-pressed="true"]{border-color:var(--accent);background:#fff}
+.plan b{font-size:18px}.plan span{font-weight:700;font-size:20px}.plan small{color:var(--muted);font-weight:400;font-size:13px}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}

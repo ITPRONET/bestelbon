@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-const TABS = [["", "Overzicht"], ["nieuw", "Nieuwe klant"], ["facturen", "Facturen"], ["installaties", "Installaties"], ["gegevens", "Mijn gegevens"]] as const;
+const TABS = [["", "Overzicht"], ["aanvragen", "Aanvragen"], ["nieuw", "Nieuwe klant"], ["facturen", "Facturen"], ["installaties", "Installaties"], ["gegevens", "Mijn gegevens"]] as const;
 
 export default function AdminNav({ active }: { active: string }) {
   return (

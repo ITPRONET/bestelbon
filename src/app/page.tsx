@@ -10,6 +10,7 @@ export default function Home() {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <Link className="btn btn-primary" href="/frituurdekroon">Demo-bestelpagina</Link>
         <Link className="btn" href="/beheer">Beheer voor zaken</Link>
+        <Link className="btn" href="/aanmelden">Aanmelden</Link>
       </div>
     </main>
   );
