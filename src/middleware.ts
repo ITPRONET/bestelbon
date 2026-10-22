@@ -5,7 +5,7 @@ import { APP_PATHS } from "@/lib/reserved";
 // On bestelbon.eu the app and the WordPress site share one domain:
 // app paths and restaurant pages are served here, everything else comes from WordPress (WP_ORIGIN).
 const MAIN_HOSTS = (process.env.MAIN_HOSTS ?? "bestelbon.eu").split(",").map((h) => h.trim());
-const WP_ORIGIN = process.env.WP_ORIGIN ?? "https://site.bestelbon.eu";
+const WP_ORIGIN = process.env.WP_ORIGIN ?? "https://www.bestelbon.eu";
 
 let slugCache: { at: number; slugs: Set<string> } | null = null;
 async function slugs() {
@@ -28,7 +28,13 @@ export async function middleware(req: NextRequest) {
 
   if (MAIN_HOSTS.includes(req.headers.get("host") ?? "")) {
     const isApp = APP_PATHS.includes(first) || (first !== "" && (await slugs()).has(first));
-    if (!isApp) return NextResponse.rewrite(new URL(path + req.nextUrl.search, WP_ORIGIN));
+    if (!isApp) {
+      // WordPress recognises proxied requests by this key (see wp-config.php) and then acts as bestelbon.eu.
+      const headers = new Headers(req.headers);
+      headers.set("x-bb-proxy", process.env.WP_PROXY_KEY ?? "");
+      headers.set("x-forwarded-host", req.headers.get("host") ?? "");
+      return NextResponse.rewrite(new URL(path + req.nextUrl.search, WP_ORIGIN), { request: { headers } });
+    }
   }
 
   if (first !== "beheer") return NextResponse.next();
