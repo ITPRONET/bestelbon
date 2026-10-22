@@ -4,6 +4,7 @@ import PanelNav from "@/components/PanelNav";
 import { panel } from "@/lib/panel";
 import { userDb } from "@/lib/supabase-server";
 import { toCents, fromCents } from "@/lib/euro";
+import { DAYS, cleanPostcode } from "@/lib/hours";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Instellingen" };
@@ -44,6 +45,49 @@ async function saveBrand(f: FormData) {
   redirect(`/beheer/instellingen?zaak=${data?.slug ?? ""}&ok=1`);
 }
 
+const T = (v: string) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : "");
+
+async function saveHours(f: FormData) {
+  "use server";
+  const db = await userDb();
+  const rid = s(f, "rid");
+  const rows: { restaurant_id: string; weekday: number; opens: string; closes: string }[] = [];
+  for (let d = 0; d < 7; d++) {
+    if (f.get(`dicht_${d}`) === "on") continue;
+    for (const k of [1, 2]) {
+      const o = T(s(f, `o${k}_${d}`)), c = T(s(f, `c${k}_${d}`));
+      if (o && c && o !== c) rows.push({ restaurant_id: rid, weekday: d, opens: o, closes: c });
+    }
+  }
+  const { data: r } = await db.from("restaurants").select("slug").eq("id", rid).single(); // RLS-check
+  if (!r) redirect("/beheer/instellingen");
+  await db.from("opening_hours").delete().eq("restaurant_id", rid);
+  if (rows.length) await db.from("opening_hours").insert(rows);
+  revalidatePath(`/${r.slug}`);
+  redirect(`/beheer/instellingen?zaak=${r.slug}&ok=1#uren`);
+}
+
+async function saveZones(f: FormData) {
+  "use server";
+  const db = await userDb();
+  const rid = s(f, "rid");
+  const map = new Map<string, { restaurant_id: string; postcode: string; fee_cents: number; min_order_cents: number }>();
+  for (let i = 0; i < 40; i++) {
+    if (!f.has(`pc_${i}`)) break;
+    const fee = toCents(f.get(`fee_${i}`)) ?? 0, min = toCents(f.get(`min_${i}`)) ?? 0;
+    for (const raw of String(f.get(`pc_${i}`) ?? "").slice(0, 200).split(/[\s,;]+/)) {
+      const pc = cleanPostcode(raw);
+      if (pc.length === 4) map.set(pc, { restaurant_id: rid, postcode: pc, fee_cents: fee, min_order_cents: min });
+    }
+  }
+  const { data: r } = await db.from("restaurants").select("slug").eq("id", rid).single();
+  if (!r) redirect("/beheer/instellingen");
+  await db.from("delivery_zones").delete().eq("restaurant_id", rid);
+  if (map.size) await db.from("delivery_zones").insert([...map.values()]);
+  revalidatePath(`/${r.slug}`);
+  redirect(`/beheer/instellingen?zaak=${r.slug}&ok=1#zones`);
+}
+
 export default async function Page({ searchParams }: { searchParams: Promise<{ zaak?: string; ok?: string; fout?: string }> }) {
   const sp = await searchParams;
   const { db, restaurants, current } = await panel(sp.zaak);
@@ -51,6 +95,16 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
   const { data: r } = await db.from("restaurants").select("*").eq("id", current.id).single();
   const { data: co } = await db.from("companies").select("plan").eq("id", current.company_id).maybeSingle();
   const pro = co?.plan === "pro";
+  const [{ data: hours }, { data: zones }] = await Promise.all([
+    db.from("opening_hours").select("weekday, opens, closes").eq("restaurant_id", current.id).order("opens"),
+    db.from("delivery_zones").select("postcode, fee_cents, min_order_cents").eq("restaurant_id", current.id).order("postcode"),
+  ]);
+  // Group postcodes with the same price into one row.
+  const zoneRows = Object.values((zones ?? []).reduce<Record<string, { pcs: string[]; fee: number; min: number }>>((acc, z) => {
+    const k = `${z.fee_cents}|${z.min_order_cents}`;
+    (acc[k] ??= { pcs: [], fee: z.fee_cents, min: z.min_order_cents }).pcs.push(z.postcode);
+    return acc;
+  }, {}));
   const storage = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/zaak-media/`;
   if (!r) return null;
   return (
@@ -101,6 +155,45 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
             <p className="muted" style={{ margin: 0 }}>Met het Pro-pakket toont je bestelpagina je eigen logo en kleuren. Vraag het aan via info@bestelbon.eu.</p>
           )}
         </section>
+      </div>
+      <div className="sgrid">
+        <form action={saveHours} className="panel" id="uren" style={{ display: "grid", gap: 12, alignContent: "start" }}>
+          <input type="hidden" name="rid" value={r.id} />
+          <h2 className="h2">Openingsuren</h2>
+          <p className="muted small" style={{ margin: 0 }}>Buiten deze uren neemt je bestelpagina geen bestellingen aan. Vóór de opening kunnen klanten al bestellen voor later die dag. Een tweede shift is optioneel, bijvoorbeeld 11:30–14:00 en 17:00–21:30.</p>
+          <div className="hgrid">
+            {[1, 2, 3, 4, 5, 6, 0].map((d) => {
+              const rows = (hours ?? []).filter((h) => h.weekday === d);
+              const v = (i: number, k: "opens" | "closes") => rows[i]?.[k]?.slice(0, 5) ?? "";
+              return (
+                <div key={d} className="hrow">
+                  <b>{DAYS[d]}</b>
+                  <label className="check small"><input type="checkbox" name={`dicht_${d}`} defaultChecked={!rows.length && (hours ?? []).length > 0} /> gesloten</label>
+                  <span className="hshift"><input type="time" name={`o1_${d}`} defaultValue={v(0, "opens")} aria-label={`${DAYS[d]} open`} />–<input type="time" name={`c1_${d}`} defaultValue={v(0, "closes")} aria-label={`${DAYS[d]} dicht`} /></span>
+                  <span className="hshift"><input type="time" name={`o2_${d}`} defaultValue={v(1, "opens")} aria-label={`${DAYS[d]} open 2`} />–<input type="time" name={`c2_${d}`} defaultValue={v(1, "closes")} aria-label={`${DAYS[d]} dicht 2`} /></span>
+                </div>
+              );
+            })}
+          </div>
+          {!(hours ?? []).length && <div className="alert">Nog geen openingsuren: je bestelpagina neemt nu altijd bestellingen aan.</div>}
+          <div><button className="btn btn-primary">Openingsuren opslaan</button></div>
+        </form>
+        <form action={saveZones} className="panel" id="zones" style={{ display: "grid", gap: 12, alignContent: "start" }}>
+          <input type="hidden" name="rid" value={r.id} />
+          <h2 className="h2">Bezorgzones</h2>
+          <p className="muted small" style={{ margin: 0 }}>Vul de postcodes in waar je levert, met leverkost en minimum. Meerdere postcodes met dezelfde prijs mag op één lijn, gescheiden door een komma. Zonder zones lever je overal aan de leverkost hierboven.</p>
+          <div className="zgrid">
+            <span className="muted small">Postcodes</span><span className="muted small">Leverkost €</span><span className="muted small">Minimum €</span>
+            {[...zoneRows, ...Array.from({ length: Math.max(2, 4 - zoneRows.length) }, () => null)].map((z, i) => (
+              <div key={i} style={{ display: "contents" }}>
+                <input name={`pc_${i}`} defaultValue={z?.pcs.join(", ") ?? ""} placeholder={i === 0 ? "2180, 2170" : ""} aria-label="Postcodes" />
+                <input name={`fee_${i}`} defaultValue={z ? fromCents(z.fee) : ""} inputMode="decimal" placeholder="2,50" aria-label="Leverkost" />
+                <input name={`min_${i}`} defaultValue={z ? fromCents(z.min) : ""} inputMode="decimal" placeholder="15,00" aria-label="Minimum" />
+              </div>
+            ))}
+          </div>
+          <div><button className="btn btn-primary">Zones opslaan</button></div>
+        </form>
       </div>
     </>
   );

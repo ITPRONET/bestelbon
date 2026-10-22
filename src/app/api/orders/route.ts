@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { adminDb } from "@/lib/supabase";
+import { cleanPostcode, findZone, openState, timeSlots, weekMinute } from "@/lib/hours";
 
 export const runtime = "nodejs";
 
@@ -30,8 +31,26 @@ export async function POST(req: Request) {
   }
   const db = adminDb();
 
-  const { data: r } = await db.from("restaurants").select("id, name, is_open, delivery_fee_cents, min_order_cents").eq("slug", b.slug).maybeSingle();
+  const { data: r } = await db.from("restaurants").select("id, name, is_open, delivery_fee_cents, min_order_cents, prep_minutes").eq("slug", b.slug).maybeSingle();
   if (!r || !r.is_open) return NextResponse.json({ error: "Deze zaak neemt nu geen online bestellingen aan." }, { status: 409 });
+
+  // Openingsuren en gekozen tijdstip (een paar minuten speling voor wie lang over de bestelling deed).
+  const [{ data: hours }, { data: zones }] = await Promise.all([
+    db.from("opening_hours").select("weekday, opens, closes").eq("restaurant_id", r.id),
+    db.from("delivery_zones").select("postcode, fee_cents, min_order_cents").eq("restaurant_id", r.id),
+  ]);
+  const now = weekMinute();
+  const allowed = new Set([...timeSlots(hours ?? [], r.prep_minutes, now), ...timeSlots(hours ?? [], r.prep_minutes, now - 10)]);
+  if (!allowed.size) return NextResponse.json({ error: `De zaak is gesloten. ${openState(hours ?? [], now).label}.` }, { status: 409 });
+  if (!allowed.has(b.time)) return NextResponse.json({ error: "Dit tijdstip kan niet meer. Kies een ander tijdstip." }, { status: 400 });
+
+  // Bezorgzones: als de zaak zones heeft, bepalen die leverkost en minimum.
+  let feeCents = r.delivery_fee_cents, minCents = r.min_order_cents;
+  if (b.mode === "levering" && zones?.length) {
+    const z = findZone(zones, b.postcode ?? "");
+    if (!z) return NextResponse.json({ error: `We leveren niet in ${cleanPostcode(b.postcode ?? "") || "deze gemeente"}. Kies afhalen of bel de zaak.` }, { status: 400 });
+    feeCents = z.fee_cents; minCents = z.min_order_cents;
+  }
 
   // Printers: is er minstens één online? Anders pauzeren we (zie stroomuitval-regels).
   const { data: printers } = await db.from("printers").select("id, role, copies, last_seen_at").eq("restaurant_id", r.id);
@@ -64,8 +83,8 @@ export async function POST(req: Request) {
     lines.push({ item_id: it.id, item_name: it.name, options: opts, unit_cents: unit, qty: l.qty });
   }
   const subtotal = lines.reduce((s, l) => s + l.unit_cents * l.qty, 0);
-  const fee = b.mode === "levering" ? r.delivery_fee_cents : 0;
-  if (b.mode === "levering" && subtotal < r.min_order_cents) {
+  const fee = b.mode === "levering" ? feeCents : 0;
+  if (b.mode === "levering" && subtotal < minCents) {
     return NextResponse.json({ error: "Het minimum voor levering is nog niet bereikt." }, { status: 400 });
   }
 

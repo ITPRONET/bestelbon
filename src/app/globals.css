@@ -206,3 +206,19 @@ input[type=color]{height:42px;padding:3px}
 .inv-foot{border-top:1px solid var(--line);padding-top:10px;text-align:center}
 @media (max-width:640px){.invoice{padding:18px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media print{.invoice{border:0;padding:0;max-width:none}main.wrap{padding:0!important}@page{size:A4;margin:14mm}}
+.shop-head .openlbl{display:inline-block;margin-top:6px;font-weight:700;background:#ffffff1f;border-radius:99px;padding:2px 10px;opacity:1}
+.shop-head .openlbl.on::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--mint);margin-right:6px}
+.hours{margin-left:auto;font-size:14px;position:relative}
+.hours summary{cursor:pointer;border:1px solid #ffffff40;border-radius:99px;padding:6px 12px;list-style:none;white-space:nowrap}
+.hours summary::-webkit-details-marker{display:none}
+.hours table{position:absolute;right:0;top:calc(100% + 6px);background:#fff;color:var(--text);border-radius:12px;padding:10px 14px;box-shadow:0 10px 30px #0003;z-index:5;border-collapse:collapse;white-space:nowrap}
+.hours th{text-align:left;padding:3px 14px 3px 0;font-weight:600;text-transform:capitalize}
+.hours td{padding:3px 0}
+@media (max-width:640px){.shop-head .wrap{flex-wrap:wrap}.hours{margin-left:0}.hours table{left:0;right:auto}}
+.hgrid{display:grid;gap:6px}
+.hrow{display:grid;grid-template-columns:92px 96px 1fr 1fr;gap:8px;align-items:center;font-size:14px}
+.hrow b{text-transform:capitalize}
+.hshift{display:flex;gap:4px;align-items:center}
+.hshift input,.zgrid input{background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px;min-width:0;width:100%}
+.zgrid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);gap:6px;align-items:center}
+@media (max-width:640px){.hrow{grid-template-columns:1fr auto}.hshift{grid-column:1/-1}}

@@ -11,6 +11,6 @@ export type Restaurant = {
   delivery_fee_cents: number; min_order_cents: number; prep_minutes: number; is_open: boolean; paused_reason: string | null;
   company_id: string;
 };
-export type Menu = { restaurant: Restaurant; categories: Category[]; plan: "standaard" | "pro" };
+export type Menu = { restaurant: Restaurant; categories: Category[]; plan: "standaard" | "pro"; hours: import("./hours").HourRow[]; zones: import("./hours").Zone[] };
 
 export type CartLine = { itemId: string; choiceIds: string[]; qty: number };

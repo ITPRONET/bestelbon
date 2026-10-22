@@ -11,7 +11,11 @@ export async function loadMenu(slug: string): Promise<Menu | null> {
     .select("id, slug, name, type, city, street, postcode, brand_primary, brand_accent, logo_path, delivery_fee_cents, min_order_cents, prep_minutes, is_open, paused_reason, company_id")
     .eq("slug", slug).maybeSingle();
   if (!restaurant) return null;
-  const { data: cats } = await db.from("menu_categories").select(SELECT).eq("restaurant_id", restaurant.id);
+  const [{ data: cats }, { data: hours }, { data: zones }] = await Promise.all([
+    db.from("menu_categories").select(SELECT).eq("restaurant_id", restaurant.id),
+    db.from("opening_hours").select("weekday, opens, closes").eq("restaurant_id", restaurant.id),
+    db.from("delivery_zones").select("postcode, fee_cents, min_order_cents").eq("restaurant_id", restaurant.id).order("postcode"),
+  ]);
   const categories = ((cats ?? []) as unknown as Category[])
     .sort((a, b) => a.position - b.position)
     .map((c) => ({
@@ -25,7 +29,7 @@ export async function loadMenu(slug: string): Promise<Menu | null> {
     }));
   // Plan is not public data; the storefront only needs to know whether branding is allowed.
   const plan = await planOf(restaurant.company_id);
-  return { restaurant, categories, plan };
+  return { restaurant, categories, plan, hours: hours ?? [], zones: zones ?? [] };
 }
 
 async function planOf(companyId: string): Promise<"standaard" | "pro"> {
