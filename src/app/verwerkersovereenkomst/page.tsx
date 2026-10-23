@@ -2,7 +2,7 @@ import Link from "next/link";
 import Legal, { legalSeller, who, SUBPROCESSORS } from "@/components/Legal";
 
 export const revalidate = 3600;
-export const metadata = { title: "Verwerkersovereenkomst · BestelBon" };
+export const metadata = { title: "Verwerkersovereenkomst" };
 
 export default async function Page() {
   const s = await legalSeller();

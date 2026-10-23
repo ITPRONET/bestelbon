@@ -4,7 +4,7 @@ import { eur } from "@/lib/money";
 import Signup from "./Signup";
 
 export const revalidate = 300;
-export const metadata = { title: "Aanmelden · BestelBon", description: "Meld je zaak aan voor BestelBon: online bestellen met automatische keukenbonnen." };
+export const metadata = { title: "Aanmelden", description: "Meld je zaak aan voor BestelBon: online bestellen met automatische keukenbonnen." };
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ pakket?: string }> }) {
   const sp = await searchParams;

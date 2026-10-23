@@ -1,7 +1,7 @@
 import Legal, { legalSeller, who, SUBPROCESSORS } from "@/components/Legal";
 
 export const revalidate = 3600;
-export const metadata = { title: "Privacyverklaring · BestelBon" };
+export const metadata = { title: "Privacyverklaring" };
 
 export default async function Page() {
   const s = await legalSeller();
