@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { after } from "next/server";
 import { adminDb } from "@/lib/supabase";
+import { sendOrderReceived } from "@/lib/order-mail";
 import { cleanPostcode, findZone, openState, timeSlots, weekMinute } from "@/lib/hours";
 
 export const runtime = "nodejs";
@@ -111,6 +113,11 @@ export async function POST(req: Request) {
     for (const p of targets) for (let i = 0; i < (delivery.length ? p.copies : 1); i++) jobs.push({ printer_id: p.id, order_id: order.id, restaurant_id: r.id, kind: "bezorging" });
   }
   if (jobs.length) await db.from("print_jobs").insert(jobs);
+  else {
+    // Geen printer (testfase): de klant krijgt de bevestiging meteen.
+    await db.from("orders").update({ customer_notified_at: new Date().toISOString() }).eq("id", order.id);
+    after(() => sendOrderReceived(order.id).then(() => undefined));
+  }
 
   return NextResponse.json({ id: order.id, number: order.day_number });
 }

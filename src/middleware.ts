@@ -24,6 +24,20 @@ async function slugs() {
   return slugCache.slugs;
 }
 
+const domainCache = new Map<string, { at: number; slug: string | null }>();
+async function slugForDomain(host: string) {
+  const hit = domainCache.get(host);
+  if (hit && Date.now() - hit.at < 60_000) return hit.slug;
+  let slug: string | null = null;
+  try {
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/restaurants?select=slug&domain_verified=eq.true&custom_domain=eq.${encodeURIComponent(host)}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+    slug = ((await res.json()) as { slug: string }[])[0]?.slug ?? null;
+  } catch { /* keep null */ }
+  domainCache.set(host, { at: Date.now(), slug });
+  return slug;
+}
+
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
   const first = path.split("/")[1] ?? "";
@@ -32,6 +46,15 @@ export async function middleware(req: NextRequest) {
   const host = req.headers.get("host") ?? "";
   if (OLD_HOSTS.includes(host) && first !== "api") {
     return NextResponse.redirect(new URL(path + req.nextUrl.search, CANONICAL), 308);
+  }
+
+  // Pro: the restaurant's own domain (e.g. bestellen.frituurdekroon.be) shows its ordering page.
+  if (!MAIN_HOSTS.includes(host) && !host.endsWith(".vercel.app") && !host.startsWith("localhost")) {
+    const slug = await slugForDomain(host);
+    if (slug && first !== slug && !["_next", "api", "privacy", "voorwaarden", "verwerkersovereenkomst", "favicon.ico"].includes(first)) {
+      return NextResponse.rewrite(new URL(`/${slug}${path === "/" ? "" : path}${req.nextUrl.search}`, req.url));
+    }
+    return NextResponse.next();
   }
 
   if (MAIN_HOSTS.includes(host)) {

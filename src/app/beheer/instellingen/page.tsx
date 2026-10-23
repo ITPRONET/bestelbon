@@ -5,6 +5,8 @@ import { panel } from "@/lib/panel";
 import { userDb } from "@/lib/supabase-server";
 import { toCents, fromCents } from "@/lib/euro";
 import { DAYS, cleanPostcode } from "@/lib/hours";
+import { adminDb } from "@/lib/supabase";
+import { addDomain, cleanDomain, domainStatus, domainsEnabled, isApex, removeDomain } from "@/lib/vercel";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Instellingen" };
@@ -43,6 +45,50 @@ async function saveBrand(f: FormData) {
   const { data } = await db.from("restaurants").update(update).eq("id", rid).select("slug").single();
   if (data) revalidatePath(`/${data.slug}`);
   redirect(`/beheer/instellingen?zaak=${data?.slug ?? ""}&ok=1`);
+}
+
+/** Owner of this restaurant on the Pro plan? (RLS decides membership.) */
+async function proRestaurant(rid: string) {
+  const db = await userDb();
+  const { data: r } = await db.from("restaurants").select("id, slug, company_id, custom_domain, restaurant_members!inner(user_id)").eq("id", rid).maybeSingle();
+  const { data: adm } = await db.from("platform_admins").select("user_id").maybeSingle();
+  const row = r ?? (adm ? (await db.from("restaurants").select("id, slug, company_id, custom_domain").eq("id", rid).maybeSingle()).data : null);
+  if (!row) return null;
+  const { data: co } = await db.from("companies").select("plan").eq("id", row.company_id).maybeSingle();
+  return co?.plan === "pro" ? row : null;
+}
+
+async function saveDomain(f: FormData) {
+  "use server";
+  const r = await proRestaurant(s(f, "rid"));
+  if (!r) redirect("/beheer/instellingen");
+  const d = cleanDomain(s(f, "domain"));
+  if (!d) redirect(`/beheer/instellingen?zaak=${r.slug}&fout=domein#domein`);
+  const db = adminDb();
+  const { data: taken } = await db.from("restaurants").select("id").eq("custom_domain", d).neq("id", r.id).maybeSingle();
+  if (taken) redirect(`/beheer/instellingen?zaak=${r.slug}&fout=domeinbezet#domein`);
+  if (r.custom_domain && r.custom_domain !== d) await removeDomain(r.custom_domain);
+  const res = await addDomain(d);
+  await db.from("restaurants").update({ custom_domain: d, domain_verified: false }).eq("id", r.id);
+  redirect(`/beheer/instellingen?zaak=${r.slug}${res.ok || res.error === "geen-token" ? "" : "&fout=vercel"}#domein`);
+}
+
+async function checkDomain(f: FormData) {
+  "use server";
+  const r = await proRestaurant(s(f, "rid"));
+  if (!r?.custom_domain) redirect("/beheer/instellingen");
+  const st = await domainStatus(r.custom_domain);
+  await adminDb().from("restaurants").update({ domain_verified: st.ok }).eq("id", r.id);
+  redirect(`/beheer/instellingen?zaak=${r.slug}&domein=${st.ok ? "ok" : "nog"}#domein`);
+}
+
+async function dropDomain(f: FormData) {
+  "use server";
+  const r = await proRestaurant(s(f, "rid"));
+  if (!r?.custom_domain) redirect("/beheer/instellingen");
+  await removeDomain(r.custom_domain);
+  await adminDb().from("restaurants").update({ custom_domain: null, domain_verified: false }).eq("id", r.id);
+  redirect(`/beheer/instellingen?zaak=${r.slug}#domein`);
 }
 
 const T = (v: string) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : "");
@@ -88,7 +134,7 @@ async function saveZones(f: FormData) {
   redirect(`/beheer/instellingen?zaak=${r.slug}&ok=1#zones`);
 }
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ zaak?: string; ok?: string; fout?: string }> }) {
+export default async function Page({ searchParams }: { searchParams: Promise<{ zaak?: string; ok?: string; fout?: string; domein?: string }> }) {
   const sp = await searchParams;
   const { db, restaurants, current } = await panel(sp.zaak);
   if (!current) return null;
@@ -156,6 +202,53 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
           )}
         </section>
       </div>
+      <section className="panel" id="domein" style={{ display: "grid", gap: 12 }}>
+        <h2 className="h2">Eigen domeinnaam <span className="pill">{pro ? "Pro" : "Pro-functie"}</span></h2>
+        {!pro ? (
+          <p className="muted" style={{ margin: 0 }}>Met het Pro-pakket staat je bestelpagina op je eigen adres, bijvoorbeeld bestellen.jouwzaak.be, met een gratis SSL-certificaat. Vraag het aan via info@bestelbon.eu.</p>
+        ) : (
+          <>
+            {sp.fout === "domein" && <div className="alert">Dit is geen geldige domeinnaam. Vul bijvoorbeeld bestellen.jouwzaak.be in.</div>}
+            {sp.fout === "domeinbezet" && <div className="alert">Deze domeinnaam is al in gebruik bij een andere zaak.</div>}
+            {sp.fout === "vercel" && <div className="alert">De domeinnaam kon niet worden toegevoegd. Mail naar info@bestelbon.eu, we helpen je verder.</div>}
+            {sp.domein === "ok" && <div className="okmsg">Je domein werkt. Je bestelpagina staat nu ook op https://{r.custom_domain}</div>}
+            {sp.domein === "nog" && <div className="alert">Nog niet klaar. Controleer de DNS-instelling hieronder; een wijziging kan tot een uur duren.</div>}
+            {r.custom_domain ? (
+              <>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                  <b style={{ fontSize: 17 }}>{r.custom_domain}</b>
+                  <span className={`pill ${r.domain_verified ? "ok" : "wait"}`}>{r.domain_verified ? "Actief" : "Wacht op DNS"}</span>
+                  {r.domain_verified && <a className="btn" href={`https://${r.custom_domain}`} target="_blank" rel="noopener">Openen</a>}
+                </div>
+                {!r.domain_verified && (
+                  <div className="small" style={{ display: "grid", gap: 6 }}>
+                    <span>Zet bij je domeinbeheerder (bv. Combell, One.com, je webdesigner) dit DNS-record:</span>
+                    <table className="tbl" style={{ maxWidth: 560 }}><thead><tr><th>Type</th><th>Naam</th><th>Waarde</th></tr></thead><tbody>
+                      {isApex(r.custom_domain)
+                        ? <tr><td>A</td><td>@</td><td className="mono">76.76.21.21</td></tr>
+                        : <tr><td>CNAME</td><td className="mono">{r.custom_domain.split(".")[0]}</td><td className="mono">cname.vercel-dns.com</td></tr>}
+                    </tbody></table>
+                    <span className="muted">Daarna klik je op Controleren. Het SSL-certificaat komt automatisch.</span>
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {!r.domain_verified && <form action={checkDomain}><input type="hidden" name="rid" value={r.id} /><button className="btn btn-primary">Controleren</button></form>}
+                  <details className="confirm"><summary className="btn btn-ghost">Domein verwijderen</summary>
+                    <form action={dropDomain} className="confirm-box"><input type="hidden" name="rid" value={r.id} /><span className="small">Je bestelpagina blijft bereikbaar op bestelbon.eu/{r.slug}.</span><button className="btn btn-danger">Ja, verwijderen</button></form>
+                  </details>
+                </div>
+              </>
+            ) : (
+              <form action={saveDomain} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end" }}>
+                <input type="hidden" name="rid" value={r.id} />
+                <label className="field" style={{ flex: "1 1 260px" }}>Domeinnaam<input name="domain" placeholder="bestellen.jouwzaak.be" required /></label>
+                <button className="btn btn-primary">Koppelen</button>
+              </form>
+            )}
+            {!domainsEnabled() && <p className="muted small" style={{ margin: 0 }}>Koppelen gebeurt nu manueel door BestelBon. We laten je weten wanneer het actief is.</p>}
+          </>
+        )}
+      </section>
       <div className="stack2">
         <form action={saveHours} className="panel" id="uren" style={{ display: "grid", gap: 12, alignContent: "start" }}>
           <input type="hidden" name="rid" value={r.id} />

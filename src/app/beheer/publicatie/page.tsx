@@ -7,10 +7,11 @@ export const metadata = { title: "Publicatie" };
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ zaak?: string }> }) {
   const sp = await searchParams;
-  const { restaurants, current } = await panel(sp.zaak);
+  const { db, restaurants, current } = await panel(sp.zaak);
   if (!current) return null;
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-  const url = `${base}/${current.slug}`;
+  const { data: rd } = await db.from("restaurants").select("custom_domain, domain_verified").eq("id", current.id).single();
+  const url = rd?.custom_domain && rd.domain_verified ? `https://${rd.custom_domain}` : `${base}/${current.slug}`;
   const button = `<a href="${url}" target="_blank" rel="noopener" style="display:inline-block;background:#ff6a00;color:#fff;font:600 16px/1 system-ui,sans-serif;padding:14px 22px;border-radius:999px;text-decoration:none">Online bestellen</a>`;
   return (
     <>
@@ -43,13 +44,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
           <div className="sticker">
             <div className="st-top"><small>Scan &amp; bestel</small>Bestel online</div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/api/qr?slug=${current.slug}`} alt={`QR-code naar ${url}`} width={200} height={200} />
+            <img src={`/api/qr?slug=${current.slug}&u=${encodeURIComponent(url)}`} alt={`QR-code naar ${url}`} width={200} height={200} />
             <div className="st-name">{current.name}</div>
             <div className="st-url">{url.replace(/^https?:\/\//, "")}</div>
           </div>
           <p style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-            <a className="btn btn-primary" href={`/api/qr?slug=${current.slug}&format=png&download=1`}>Download PNG</a>
-            <a className="btn" href={`/api/qr?slug=${current.slug}&download=1`}>Download SVG (drukker)</a>
+            <a className="btn btn-primary" href={`/api/qr?slug=${current.slug}&u=${encodeURIComponent(url)}&format=png&download=1`}>Download PNG</a>
+            <a className="btn" href={`/api/qr?slug=${current.slug}&u=${encodeURIComponent(url)}&download=1`}>Download SVG (drukker)</a>
           </p>
         </section>
       </div>

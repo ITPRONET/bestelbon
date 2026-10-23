@@ -7,7 +7,9 @@ export async function GET(req: Request) {
   const u = new URL(req.url);
   const slug = u.searchParams.get("slug") ?? "";
   if (!/^[a-z0-9-]{3,40}$/.test(slug)) return new Response("Onbekend", { status: 400 });
-  const target = `${process.env.NEXT_PUBLIC_SITE_URL ?? u.origin}/${slug}`;
+  // Optional custom domain (Pro); only plain https hostnames are accepted.
+  const custom = u.searchParams.get("u") ?? "";
+  const target = /^https:\/\/[a-z0-9.-]+$/.test(custom) ? custom : `${process.env.NEXT_PUBLIC_SITE_URL ?? u.origin}/${slug}`;
   const dl: Record<string, string> = u.searchParams.get("download") ? { "Content-Disposition": `attachment; filename="qr-${slug}.${u.searchParams.get("format") === "png" ? "png" : "svg"}"` } : {};
   if (u.searchParams.get("format") === "png") {
     const png = await QRCode.toBuffer(target, { width: 1200, margin: 2, errorCorrectionLevel: "M" });

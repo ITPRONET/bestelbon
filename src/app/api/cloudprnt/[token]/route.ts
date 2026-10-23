@@ -5,6 +5,8 @@ import { createHash } from "crypto";
 import { adminDb } from "@/lib/supabase";
 import { kitchenTicket, deliveryTicket, type TicketOrder, type TicketLine } from "@/lib/ticket";
 import { ticketPng, testPng } from "@/lib/ticket-image";
+import { after } from "next/server";
+import { sendOrderReceived } from "@/lib/order-mail";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -91,10 +93,12 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ token
     const now = new Date().toISOString();
     await db.from("print_jobs").update({ status: "geprint", printed_at: now }).eq("id", job.id);
     if (!job.order_id) return new NextResponse("OK");
+    // First ticket out of the printer: the restaurant has the order, so we tell the customer (once).
+    const { data: first } = await db.from("orders").update({ customer_notified_at: now }).eq("id", job.order_id).is("customer_notified_at", null).select("id");
+    if (first?.length) { const id = job.order_id; after(() => sendOrderReceived(id).then(() => undefined)); }
     const { count } = await db.from("print_jobs").select("id", { count: "exact", head: true })
       .eq("order_id", job.order_id).neq("status", "geprint");
     if (!count) await db.from("orders").update({ status: "geprint", printed_at: now }).eq("id", job.order_id).neq("status", "geprint");
-    // TODO: e-mail "ontvangen door de zaak" naar de klant
   } else {
     // Papier op, klep open, ...: opnieuw proberen, tot een maximum.
     await db.from("print_jobs").update({ status: job.attempts >= MAX_ATTEMPTS ? "mislukt" : "wachtend" }).eq("id", job.id);
