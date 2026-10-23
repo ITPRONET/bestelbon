@@ -5,6 +5,8 @@ import { APP_PATHS } from "@/lib/reserved";
 // On bestelbon.eu the app and the WordPress site share one domain:
 // app paths and restaurant pages are served here, everything else comes from WordPress (WP_ORIGIN).
 const MAIN_HOSTS = (process.env.MAIN_HOSTS ?? "bestelbon.eu").split(",").map((h) => h.trim());
+const OLD_HOSTS = (process.env.OLD_HOSTS ?? "bestelbon-bestelbon1.vercel.app").split(",").map((h) => h.trim());
+const CANONICAL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bestelbon.eu";
 const WP_ORIGIN = process.env.WP_ORIGIN ?? "https://www.bestelbon.eu";
 
 let slugCache: { at: number; slugs: Set<string> } | null = null;
@@ -26,7 +28,13 @@ export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
   const first = path.split("/")[1] ?? "";
 
-  if (MAIN_HOSTS.includes(req.headers.get("host") ?? "")) {
+  // Old app address: send people to bestelbon.eu. Printers keep using /api on the old address.
+  const host = req.headers.get("host") ?? "";
+  if (OLD_HOSTS.includes(host) && first !== "api") {
+    return NextResponse.redirect(new URL(path + req.nextUrl.search, CANONICAL), 308);
+  }
+
+  if (MAIN_HOSTS.includes(host)) {
     const isApp = APP_PATHS.includes(first) || (first !== "" && (await slugs()).has(first));
     if (!isApp) {
       // WordPress recognises proxied requests by this key (see wp-config.php) and then acts as bestelbon.eu.
