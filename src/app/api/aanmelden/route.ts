@@ -16,6 +16,7 @@ const Body = z.object({
   restaurant_name: str(60).min(2), restaurant_type: str(40).optional(),
   wanted_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
   message: str(1000).optional(),
+  gks: z.enum(["ja", "nee", "weet_niet"]).optional(),
   legal_name: str(100).min(2), vat_number: str(30).min(4), contact_name: str(80).min(2),
   street: str(100).min(3), postcode: str(10).min(4), city: str(60).min(2),
   email: str(120).email(), phone: str(30).min(6),
@@ -42,7 +43,7 @@ export async function POST(req: Request) {
 
   const row = {
     plan: b.plan, printers_cable: b.printers_cable, printers_wifi: b.printers_wifi,
-    restaurant_name: b.restaurant_name, restaurant_type: b.restaurant_type || null, wanted_start: b.wanted_start || null, message: b.message || null,
+    restaurant_name: b.restaurant_name, restaurant_type: b.restaurant_type || null, wanted_start: b.wanted_start || null, message: b.message || null, gks: b.gks ?? null,
     legal_name: b.legal_name, vat_number: vat.display, contact_name: b.contact_name, street: b.street, postcode: b.postcode, city: b.city,
     email: b.email.toLowerCase(), phone: b.phone, terms_version: TERMS_VERSION, ip_hash,
   };
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "";
   const summary = [
     `Zaak: ${row.restaurant_name} (${row.restaurant_type ?? "-"})`, `Pakket: ${row.plan === "pro" ? "Pro" : "Standaard"}`,
-    `Printers: ${row.printers_cable}× kabel, ${row.printers_wifi}× wifi`, `Gewenste start: ${row.wanted_start ?? "-"}`, "",
+    `Printers: ${row.printers_cable}× kabel, ${row.printers_wifi}× wifi`, `Gewenste start: ${row.wanted_start ?? "-"}`, `Witte kassa: ${row.gks === "ja" ? "ja" : row.gks === "weet_niet" ? "weet niet" : "nee"}`, "",
     `${row.legal_name} · ${row.vat_number}`, `${row.street}, ${row.postcode} ${row.city}`, `${row.contact_name} · ${row.phone} · ${row.email}`,
     row.message ? `\nOpmerking: ${row.message}` : "",
   ].join("\n");

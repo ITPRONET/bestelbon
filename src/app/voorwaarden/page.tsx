@@ -45,6 +45,15 @@ export default async function Page() {
         <li>De zaak zorgt dat de printer aanstaat en papier heeft tijdens de openingsuren.</li>
       </ul>
 
+      <h3>Geregistreerd kassasysteem (witte kassa)</h3>
+      <ul>
+        <li>BestelBon is een bestelplatform en geen geregistreerd kassasysteem (GKS) in de zin van het koninklijk besluit van 30 december 2009. Het levert geen btw-kasticket af.</li>
+        <li>De zaak gaat zelf na of ze een GKS moet gebruiken, bijvoorbeeld omdat haar omzet uit restaurant- en cateringdiensten de wettelijke drempel overschrijdt, en blijft als enige verantwoordelijk voor haar fiscale verplichtingen, waaronder btw, kastickets en de GKS-verplichtingen.</li>
+        <li>Is de zaak GKS-plichtig, dan registreert ze elke bestelling via BestelBon in haar GKS en levert ze het btw-kasticket af, zolang er geen gecertificeerde koppeling tussen BestelBon en haar kassasysteem is.</li>
+        <li>De bestelgegevens blijven ter beschikking in het beheerpaneel en kunnen worden geëxporteerd, zodat de zaak ze kan voorleggen aan de btw-administratie. Persoonsgegevens van klanten worden na 30 dagen gewist; bestelde artikelen, bedragen en tijdstippen blijven bewaard.</li>
+        <li>{name} is niet aansprakelijk voor boetes of naheffingen die de zaak oploopt omdat ze haar GKS-verplichtingen niet nakomt.</li>
+      </ul>
+
       <h2>8. Beschikbaarheid en storingen</h2>
       <p>{name} doet wat redelijk mogelijk is om BestelBon ononderbroken te laten werken, maar garandeert dat niet. Valt de printer uit (bijvoorbeeld door een stroomonderbreking), dan pauzeert de bestelpagina automatisch en worden wachtende bonnen afgedrukt zodra de printer terug online is. Gepland onderhoud gebeurt zoveel mogelijk buiten de gebruikelijke openingsuren.</p>
 

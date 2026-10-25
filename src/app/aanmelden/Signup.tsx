@@ -56,6 +56,9 @@ export default function Signup({ initialPlan, prices }: { initialPlan: "standaar
             <label className="field" style={{ gridColumn: "1/-1" }}>Naam van de zaak<input name="restaurant_name" required maxLength={60} /></label>
             <label className="field">Soort<select name="restaurant_type">{TYPES.map((t) => <option key={t}>{t}</option>)}</select></label>
             <label className="field">Gewenste startdatum<input name="wanted_start" type="date" /></label>
+            <label className="field" style={{ gridColumn: "1/-1" }}>Heeft je zaak een geregistreerd kassasysteem (witte kassa)?
+              <select name="gks" defaultValue="nee"><option value="nee">Nee</option><option value="ja">Ja</option><option value="weet_niet">Weet ik niet</option></select>
+            </label>
             <label className="field" style={{ gridColumn: "1/-1" }}>Opmerking<textarea name="message" rows={3} maxLength={1000} placeholder="Bv. we hebben al een menu op papier, of we leveren in Ekeren en Brasschaat." /></label>
           </div>
         </section>
