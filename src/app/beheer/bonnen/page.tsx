@@ -27,6 +27,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
             {(["alle", "keuken", "bezorging"] as const).map((s) => <Link key={s} href={`${base}&soort=${s}`} aria-current={soort === s ? "page" : undefined}>{s === "alle" ? "Alle" : s === "keuken" ? "Keuken" : "Bezorging"}</Link>)}
           </div>
           <PrintButton />
+          <a className="btn" href={`/beheer/bonnen/export?zaak=${current.slug}&van=${dag.slice(0, 8)}01&tot=${dag}`}>Export maand (CSV)</a>
           <Link className="btn" href={`/beheer?zaak=${current.slug}&dag=${dag}`}>Terug</Link>
         </div>
       </div>
