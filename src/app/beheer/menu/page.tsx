@@ -4,13 +4,14 @@ import { panel } from "@/lib/panel";
 import { userDb } from "@/lib/supabase-server";
 import { eur } from "@/lib/money";
 import { toCents, fromCents } from "@/lib/euro";
+import PhotoInput from "./PhotoInput";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Menu" };
 
 type Choice = { id: string; name: string; extra_cents: number; position: number };
 type Group = { id: string; name: string; multi: boolean; required: boolean; position: number; option_choices: Choice[] };
-type Item = { id: string; name: string; description: string | null; price_cents: number; available: boolean; position: number; option_groups: Group[] };
+type Item = { id: string; name: string; description: string | null; price_cents: number; available: boolean; position: number; image_path: string | null; option_groups: Group[] };
 type Cat = { id: string; name: string; position: number; menu_items: Item[] };
 
 async function done(rid: string) {
@@ -67,6 +68,29 @@ async function saveItem(f: FormData) {
   await db.from("menu_items").update({ name: s(f, "name").slice(0, 80), description: s(f, "description").slice(0, 200) || null, price_cents: price, available: f.get("available") === "on", category_id: s(f, "cat") }).eq("id", s(f, "id"));
   await done(s(f, "rid"));
 }
+async function savePhoto(f: FormData) {
+  "use server";
+  const db = await userDb();
+  const rid = s(f, "rid"), id = s(f, "id");
+  const photo = f.get("photo");
+  if (!(photo instanceof File) || !photo.size || photo.size > 2 * 1024 * 1024 || !/^image\/(jpeg|png|webp)$/.test(photo.type)) return;
+  const { data: item } = await db.from("menu_items").select("image_path").eq("id", id).eq("restaurant_id", rid).maybeSingle();
+  if (!item) return;
+  const path = `${rid}/gerechten/${id}-${Date.now()}.jpg`;
+  const { error } = await db.storage.from("zaak-media").upload(path, photo, { contentType: photo.type, upsert: false });
+  if (error) return;
+  await db.from("menu_items").update({ image_path: path }).eq("id", id);
+  if (item.image_path) await db.storage.from("zaak-media").remove([item.image_path]);
+  await done(rid);
+}
+async function removePhoto(f: FormData) {
+  "use server";
+  const db = await userDb();
+  const { data: item } = await db.from("menu_items").select("image_path").eq("id", s(f, "id")).maybeSingle();
+  await db.from("menu_items").update({ image_path: null }).eq("id", s(f, "id"));
+  if (item?.image_path) await db.storage.from("zaak-media").remove([item.image_path]);
+  await done(s(f, "rid"));
+}
 async function toggleItem(f: FormData) {
   "use server";
   const db = await userDb();
@@ -107,10 +131,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
   const { db, restaurants, current } = await panel(sp.zaak);
   if (!current) return null;
   const { data } = await db.from("menu_categories")
-    .select("id, name, position, menu_items ( id, name, description, price_cents, available, position, option_groups ( id, name, multi, required, position, option_choices ( id, name, extra_cents, position ) ) )")
+    .select("id, name, position, menu_items ( id, name, description, price_cents, available, position, image_path, option_groups ( id, name, multi, required, position, option_choices ( id, name, extra_cents, position ) ) )")
     .eq("restaurant_id", current.id).order("position");
   const cats = ((data ?? []) as unknown as Cat[]).map((c) => ({ ...c, menu_items: [...c.menu_items].sort((a, b) => a.position - b.position) }));
   const rid = current.id;
+  const media = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/zaak-media/`;
   const H = ({ n, v }: { n: string; v: string }) => <input type="hidden" name={n} value={v} />;
 
   return (
@@ -134,12 +159,22 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
             {c.menu_items.map((i) => (
               <details className="mitem" key={i.id}>
                 <summary>
-                  <span className={i.available ? "" : "muted"}><b>{i.name}</b>{i.option_groups.length > 0 && <small className="muted"> · {i.option_groups.map((g) => g.name).join(", ")}</small>}</span>
+                  <span className={i.available ? "" : "muted"} style={{ display: "flex", gap: 10, alignItems: "center" }}>{i.image_path && <img src={media + i.image_path} alt="" className="photo-thumb" /> /* eslint-disable-line @next/next/no-img-element */}<span><b>{i.name}</b>{i.option_groups.length > 0 && <small className="muted"> · {i.option_groups.map((g) => g.name).join(", ")}</small>}</span></span>
                   <span className="num">{eur(i.price_cents)}</span>
                   <form action={toggleItem}><H n="rid" v={rid} /><H n="id" v={i.id} /><H n="available" v={i.available ? "0" : "1"} />
                     <button className={`pill ${i.available ? "ok" : "wait"}`} style={{ border: 0, cursor: "pointer" }} title="Klik om te wisselen">{i.available ? "Beschikbaar" : "Uitverkocht"}</button></form>
                 </summary>
                 <div className="mitem-body">
+                  <div className="photo-row">
+                    {i.image_path
+                      ? <img src={media + i.image_path} alt="" className="photo-prev" /> // eslint-disable-line @next/next/no-img-element
+                      : <span className="photo-prev photo-empty">Geen foto</span>}
+                    <div style={{ display: "grid", gap: 6, alignContent: "start" }}>
+                      <form action={savePhoto}><H n="rid" v={rid} /><H n="id" v={i.id} /><PhotoInput label={i.image_path ? "Andere foto" : "Foto toevoegen"} /></form>
+                      {i.image_path && <form action={removePhoto}><H n="rid" v={rid} /><H n="id" v={i.id} /><button className="btn btn-ghost small">Foto verwijderen</button></form>}
+                      <span className="muted small">Liggend werkt het best. Een foto van je telefoon is genoeg.</span>
+                    </div>
+                  </div>
                   <form action={saveItem} className="fgrid"><H n="rid" v={rid} /><H n="id" v={i.id} />
                     <label className="field">Naam<input name="name" defaultValue={i.name} required /></label>
                     <label className="field">Prijs (€)<input name="price" defaultValue={fromCents(i.price_cents)} inputMode="decimal" required /></label>
