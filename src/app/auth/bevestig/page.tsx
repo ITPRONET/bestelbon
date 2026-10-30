@@ -20,6 +20,7 @@ export default function Page() {
       } else if (h.get("error")) {
         return setMsg("Deze link is verlopen of al gebruikt. Vraag een nieuwe aan via info@bestelbon.eu.");
       }
+      document.cookie = `bb_act=${Date.now()}; path=/; max-age=86400; samesite=lax; secure`;
       location.replace("/beheer/wachtwoord?welkom=1");
     })();
   }, []);

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import IdleLogout from "@/components/IdleLogout";
 import { userDb } from "@/lib/supabase-server";
 
 export default async function Layout({ children }: { children: React.ReactNode }) {
@@ -15,6 +16,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
           : <a className="btn btn-ghost-dark" href={home}>Naar bestelbon.eu</a>}
       </div></header>
       <main className="wrap" style={{ paddingBlock: 20, display: "grid", gap: 16 }}>{children}</main>
+      {data.user && <IdleLogout />}
     </>
   );
 }

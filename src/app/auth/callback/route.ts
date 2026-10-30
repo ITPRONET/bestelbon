@@ -8,5 +8,7 @@ export async function GET(req: Request) {
     const db = await userDb();
     await db.auth.exchangeCodeForSession(code);
   }
-  return NextResponse.redirect(new URL("/beheer", url.origin));
+  const res = NextResponse.redirect(new URL("/beheer", url.origin));
+  res.cookies.set("bb_act", String(Date.now()), { path: "/", maxAge: 86400, sameSite: "lax", secure: true });
+  return res;
 }

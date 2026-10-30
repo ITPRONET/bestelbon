@@ -350,3 +350,4 @@ input[type=color]{height:42px;padding:3px}
 summary,select,label.check,label.check *,input[type=checkbox],input[type=radio],input[type=color],input[type=file],input[type=date],input[type=time],.s-choice,[role=tab],[role=button],label:has(> input[hidden]){cursor:pointer}
 button:disabled,.btn:disabled,select:disabled{cursor:not-allowed}
 .pill{white-space:nowrap;align-self:flex-start;line-height:1.6}
+.idle-warn{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:60;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center;background:var(--ink);color:#fff;border-radius:14px;padding:12px 16px;box-shadow:0 10px 30px #0b103366;max-width:calc(100vw - 32px);font-weight:600}

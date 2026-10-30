@@ -6,5 +6,7 @@ export async function POST() {
   const db = await userDb();
   await db.auth.signOut();
   const home = process.env.NEXT_PUBLIC_MARKETING_URL || "https://bestelbon.eu";
-  return NextResponse.redirect(home, { status: 303 });
+  const res = NextResponse.redirect(home, { status: 303 });
+  res.cookies.delete("bb_act");
+  return res;
 }

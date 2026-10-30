@@ -25,6 +25,7 @@ export default function Login() {
     if (mode === "wachtwoord") {
       const { error } = await sb().auth.signInWithPassword({ email, password });
       if (error) { setError(message(error)); setBusy(false); return; }
+      document.cookie = `bb_act=${Date.now()}; path=/; max-age=86400; samesite=lax; secure`; // nieuwe sessie: inactiviteitsteller opnieuw starten
       router.push("/beheer"); router.refresh();
     } else {
       const { error } = await sb().auth.signInWithOtp({ email, options: { emailRedirectTo: `${location.origin}/auth/callback`, shouldCreateUser: false } });

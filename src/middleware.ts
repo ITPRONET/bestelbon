@@ -86,6 +86,16 @@ export async function middleware(req: NextRequest) {
   if (!data.user && !path.startsWith("/beheer/login")) {
     return NextResponse.redirect(new URL("/beheer/login", req.url));
   }
+  // Automatisch uitloggen na 30 minuten zonder activiteit (ook als de tab dicht was).
+  const last = Number(req.cookies.get("bb_act")?.value ?? 0);
+  if (data.user && last && Date.now() - last > 30 * 60_000 && !path.startsWith("/beheer/login")) {
+    await supabase.auth.signOut();
+    const out = NextResponse.redirect(new URL("/beheer/login?reden=inactief", req.url));
+    res.cookies.getAll().forEach((c) => out.cookies.set(c));
+    out.cookies.delete("bb_act");
+    return out;
+  }
+  if (data.user) res.cookies.set("bb_act", String(Date.now()), { path: "/", maxAge: 86400, sameSite: "lax", secure: true });
   // Tweestapsverificatie aan? Dan eerst de code, voor elke beheerpagina.
   if (data.user && !path.startsWith("/beheer/2fa") && !path.startsWith("/beheer/login")) {
     const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
