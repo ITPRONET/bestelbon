@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { gidsPublic, guard } from "@/lib/gids";
-import { GidsFoot, GidsHead } from "./Gids";
+import { GidsFoot, GidsHead, GidsWhy } from "./Gids";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +15,7 @@ export default async function Page() {
     <div className="g-root">
       {!pub && <div className="g-preview">Voorbeeld: de gids is nog niet publiek. Alleen jij als beheerder ziet deze pagina.</div>}
       <GidsHead />
+      <GidsWhy />
       <GidsFoot />
     </div>
   );
