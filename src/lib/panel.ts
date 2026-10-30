@@ -9,6 +9,11 @@ export async function panel(zaak?: string) {
   const { data: auth } = await db.auth.getUser();
   if (!auth.user) redirect("/beheer/login");
   const { data: adm } = await db.from("platform_admins").select("user_id").eq("user_id", auth.user.id).maybeSingle();
+  if (adm) {
+    // Het beheerdersaccount ziet alle zaken: alleen met tweestapsverificatie.
+    const { data: aal } = await db.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aal?.currentLevel !== "aal2") redirect("/beheer/2fa?verplicht=1");
+  }
   let restaurants: PanelRestaurant[];
   if (adm) {
     restaurants = (await db.from("restaurants").select("id, name, slug, company_id").order("name")).data ?? [];

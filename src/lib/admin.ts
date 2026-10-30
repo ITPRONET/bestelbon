@@ -9,6 +9,8 @@ export async function adminOnly() {
   if (!data.user) redirect("/beheer/login");
   const { data: adm } = await db.from("platform_admins").select("user_id").eq("user_id", data.user.id).maybeSingle();
   if (!adm) redirect("/beheer");
+  const { data: aal } = await db.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal?.currentLevel !== "aal2") redirect("/beheer/2fa?verplicht=1&next=/beheer/admin");
   return adminDb();
 }
 

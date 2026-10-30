@@ -86,6 +86,15 @@ export async function middleware(req: NextRequest) {
   if (!data.user && !path.startsWith("/beheer/login")) {
     return NextResponse.redirect(new URL("/beheer/login", req.url));
   }
+  // Tweestapsverificatie aan? Dan eerst de code, voor elke beheerpagina.
+  if (data.user && !path.startsWith("/beheer/2fa") && !path.startsWith("/beheer/login")) {
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") {
+      const to = new URL("/beheer/2fa", req.url);
+      to.searchParams.set("next", path + req.nextUrl.search);
+      return NextResponse.redirect(to);
+    }
+  }
   return res;
 }
 
