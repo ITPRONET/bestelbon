@@ -23,6 +23,7 @@ async function saveZaak(f: FormData) {
     postcode: s(f, "postcode").slice(0, 10) || null, city: s(f, "city").slice(0, 60) || null,
     delivery_fee_cents: fee ?? 0, min_order_cents: min ?? 0, prep_minutes: prep,
     is_open: f.get("is_open") === "on", paused_reason: f.get("is_open") === "on" ? null : "handmatig",
+    in_gids: f.get("in_gids") === "on",
   }).eq("id", s(f, "rid")).select("slug").single();
   if (data) revalidatePath(`/${data.slug}`);
   redirect(`/beheer/instellingen?zaak=${data?.slug ?? ""}&ok=1`);
@@ -164,6 +165,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
           <input type="hidden" name="rid" value={r.id} />
           <h2 className="h2">Zaak</h2>
           <label className="check big"><input type="checkbox" name="is_open" defaultChecked={r.is_open} /> Online bestellingen aannemen</label>
+          <label className="check"><input type="checkbox" name="in_gids" defaultChecked={r.in_gids} /> Toon mijn zaak in de BestelBon-gids (klanten zoeken er op postcode naar zaken die leveren of in de buurt liggen)</label>
           <div className="fgrid">
             <label className="field">Naam<input name="name" defaultValue={r.name} required /></label>
             <label className="field">Telefoon<input name="phone" defaultValue={r.phone ?? ""} /></label>

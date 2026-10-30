@@ -12,7 +12,7 @@ type Sheet = null | { kind: "item"; item: Item } | { kind: "checkout" } | { kind
 const SAVED = "bb_klant";
 
 export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: string }) {
-  const { restaurant: r, categories: allCats, plan, hours, zones } = menu;
+  const { restaurant: r, categories: allCats, plan, hours, zones, trader } = menu;
   const categories = useMemo(() => allCats.filter((c) => c.menu_items.length), [allCats]);
   const router = useRouter();
   const items = useMemo(() => new Map(categories.flatMap((c) => c.menu_items).map((i) => [i.id, i])), [categories]);
@@ -23,6 +23,16 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [f, setF] = useState({ name: "", phone: "", email: "", address: "", postcode: "", city: "", time: "Zo snel mogelijk", note: "" });
+
+  // Coming from the BestelBon-gids: "?modus=afhalen" preselects pickup; the postcode from the guide prefills delivery.
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(location.search);
+      if (q.get("modus") === "afhalen") setMode("afhalen");
+      const pc = localStorage.getItem("bb_pc");
+      if (pc && /^\d{4}$/.test(pc)) setF((x) => (x.postcode ? x : { ...x, postcode: pc }));
+    } catch { /* ignore */ }
+  }, []);
 
   // Remember the customer's details on this device (convenience only).
   useEffect(() => {
@@ -214,7 +224,11 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
             {shopAddr && <p><b>Adres</b><br /><a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.name + ", " + shopAddr)}`} target="_blank" rel="noopener">{shopAddr}</a></p>}
             <p><b>Levering</b><br />Minimum {eur(minOrder)}{zones.length ? ` · we leveren in ${zones.map((z) => z.postcode).join(", ")}` : r.delivery_fee_cents ? ` · leverkost ${eur(r.delivery_fee_cents)}` : " · gratis levering"}</p>
             {hours.length > 0 && <HoursTable hours={hours} today={now === null ? -1 : Math.floor(now / 1440)} />}
-            <p className="muted small">Betalen bij levering of afhaling. <Link href="/privacy">Privacy</Link></p>
+            {trader && (
+              <p className="small"><b>Verkoper</b><br />{trader.legal_name}<br />{[trader.street, [trader.postcode, trader.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")}{trader.street || trader.city ? <br /> : null}Btw {trader.vat_number}
+                {trader.email && <><br /><a href={`mailto:${trader.email}`}>{trader.email}</a></>}{trader.phone && <><br /><a href={`tel:${trader.phone.replace(/\s/g, "")}`}>{trader.phone}</a></>}</p>
+            )}
+            <p className="muted small">Betalen bij levering of afhaling. Je koopt rechtstreeks bij deze zaak; BestelBon levert enkel de bestelsoftware. <Link href="/privacy">Privacy</Link></p>
           </div>
         </SheetFrame>
       )}

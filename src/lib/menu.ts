@@ -1,5 +1,5 @@
 import { publicDb } from "./supabase";
-import type { Menu, Category } from "./types";
+import type { Menu, Category, Trader } from "./types";
 
 const SELECT = `id, name, position,
   menu_items ( id, name, description, price_cents, available, image_path, position,
@@ -28,16 +28,19 @@ export async function loadMenu(slug: string): Promise<Menu | null> {
       })),
     }));
   // Plan is not public data; the storefront only needs to know whether branding is allowed.
-  const plan = await planOf(restaurant.company_id);
-  return { restaurant, categories, plan, hours: hours ?? [], zones: zones ?? [] };
+  const { plan, trader } = await companyOf(restaurant.company_id);
+  return { restaurant, categories, plan, trader, hours: hours ?? [], zones: zones ?? [] };
 }
 
-async function planOf(companyId: string): Promise<"standaard" | "pro"> {
+/** Plan (for branding) and the seller's legal details (consumer law: the shop must show who sells). */
+async function companyOf(companyId: string): Promise<{ plan: "standaard" | "pro"; trader: Trader | null }> {
   try {
     const { adminDb } = await import("./supabase");
-    const { data } = await adminDb().from("companies").select("plan").eq("id", companyId).maybeSingle();
-    return (data?.plan as "standaard" | "pro") ?? "standaard";
+    const { data } = await adminDb().from("companies").select("plan, legal_name, vat_number, street, postcode, city, email, phone").eq("id", companyId).maybeSingle();
+    if (!data) return { plan: "standaard", trader: null };
+    const { plan, ...t } = data;
+    return { plan: (plan as "standaard" | "pro") ?? "standaard", trader: t as Trader };
   } catch {
-    return "standaard";
+    return { plan: "standaard", trader: null };
   }
 }

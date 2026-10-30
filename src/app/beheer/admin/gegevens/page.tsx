@@ -35,10 +35,21 @@ async function savePrices(f: FormData) {
   redirect("/beheer/admin/gegevens?ok=1");
 }
 
+async function saveGids(f: FormData) {
+  "use server";
+  const db = await adminOnly();
+  await db.from("platform_settings").update({ gids_public: f.get("gids_public") === "on", updated_at: new Date().toISOString() }).eq("id", 1);
+  redirect("/beheer/admin/gegevens?ok=1");
+}
+
 export default async function Page({ searchParams }: { searchParams: Promise<{ ok?: string; btw?: string }> }) {
   const sp = await searchParams;
   const db = await adminOnly();
-  const [s0, { data: prices }] = await Promise.all([seller(), db.from("prices").select("key, label, cents").order("cents")]);
+  const [s0, { data: prices }, { data: ps }, { count: inGids }] = await Promise.all([
+    seller(), db.from("prices").select("key, label, cents").order("cents"),
+    db.from("platform_settings").select("gids_public").eq("id", 1).maybeSingle(),
+    db.from("restaurants").select("id", { count: "exact", head: true }).eq("in_gids", true),
+  ]);
   return (
     <>
       <AdminNav active="gegevens" />
@@ -69,6 +80,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ o
             {prices?.map((p) => <label key={p.key} className="field">{p.label}<input name={p.key} defaultValue={fromCents(p.cents)} inputMode="decimal" /></label>)}
           </div>
           <p className="muted small" style={{ margin: 0 }}>Nieuwe prijzen gelden voor nieuwe facturen. Nu: {prices?.map((p) => eur(p.cents)).join(" · ")}</p>
+          <div><button className="btn btn-primary">Opslaan</button></div>
+        </form>
+        <form action={saveGids} className="panel" style={{ display: "grid", gap: 12, alignContent: "start" }}>
+          <h2 className="h2">BestelBon-gids</h2>
+          <p className="muted small" style={{ margin: 0 }}>Klanten zoeken op postcode naar zaken. Zolang de gids niet publiek is, zie alleen jij hem (ingelogd) en staat hij niet in Google. {inGids ?? 0} zaak/zaken doen mee.</p>
+          <label className="check big"><input type="checkbox" name="gids_public" defaultChecked={!!ps?.gids_public} /> Gids publiek op bestelbon.eu/bestellen</label>
+          <p className="small" style={{ margin: 0 }}><a href="/bestellen" target="_blank" rel="noopener">Gids bekijken</a></p>
           <div><button className="btn btn-primary">Opslaan</button></div>
         </form>
       </div>

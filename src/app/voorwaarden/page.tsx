@@ -14,6 +14,7 @@ export default async function Page() {
 
       <h2>2. De dienst</h2>
       <p>BestelBon bestaat uit een online bestelpagina voor de zaak, het automatisch afdrukken van bestellingen op een bonprinter, een beheerpaneel (menu, bestellingen, verkoopcijfers, instellingen) en, in het Pro-pakket, eigen logo en kleuren. De inhoud van elk pakket staat op bestelbon.eu of in de offerte.</p>
+      <p>De zaak kan er in de instellingen voor kiezen om ook in de BestelBon-gids te verschijnen (bestelbon.eu/bestellen), waar klanten op postcode zoeken. Deelname is gratis en kan op elk moment worden aangezet of uitgezet. De gids toont eerst zaken die op dat moment open zijn, daarna gesorteerd op afstand tot de opgegeven postcode; een zaak kan niet betalen voor een hogere plaats. In de gids verschijnen de naam, het type, de gemeente, de openingsstatus en de levervoorwaarden van de zaak, en bij het Pro-pakket haar logo. BestelBon mag een zaak uit de gids weren bij misbruik of misleidende gegevens, en laat de zaak dan weten waarom.</p>
 
       <h2>3. Totstandkoming</h2>
       <p>De overeenkomst start wanneer {name} een aanmelding of ondertekende offerte bevestigt. De zaak verklaart dat de opgegeven bedrijfsgegevens juist zijn en dat de persoon die zich aanmeldt de zaak mag vertegenwoordigen.</p>

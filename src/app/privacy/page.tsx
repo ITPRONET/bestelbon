@@ -57,7 +57,7 @@ export default async function Page() {
       <p>Zodra online betalen beschikbaar is, verwerkt de betaaldienst je betaling. Dat staat dan in deze lijst.</p>
 
       <h2>7. Cookies</h2>
-      <p>De bestelpagina zet geen cookies om je te volgen. In het beheerpaneel voor zaken gebruiken we alleen een noodzakelijke cookie om je ingelogd te houden.</p>
+      <p>De bestelpagina en de BestelBon-gids zetten geen cookies om je te volgen. De postcode die je in de gids zoekt, gebruiken we alleen om de lijst met zaken te tonen; we koppelen ze niet aan jou. Je laatste postcode en je bestelgegevens worden in je eigen browser onthouden, zodat je ze niet opnieuw hoeft in te vullen. In het beheerpaneel voor zaken gebruiken we alleen een noodzakelijke cookie om je ingelogd te houden.</p>
 
       <h2>8. Beveiliging</h2>
       <p>Alle verbindingen zijn versleuteld (HTTPS). Elke zaak ziet alleen haar eigen bestellingen. Wachtwoorden en printersleutels worden niet leesbaar opgeslagen.</p>
