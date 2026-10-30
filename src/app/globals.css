@@ -345,3 +345,8 @@ input[type=color]{height:42px;padding:3px}
 .photo-prev{width:160px;aspect-ratio:4/3;object-fit:cover;border-radius:12px;border:1px solid var(--line);flex:none}
 .photo-empty{display:grid;place-items:center;background:var(--bg);color:var(--muted);font-size:13px}
 .photo-thumb{width:40px;height:40px;object-fit:cover;border-radius:8px;flex:none}
+
+/* Alles wat klikbaar is, krijgt het handje */
+summary,select,label.check,label.check *,input[type=checkbox],input[type=radio],input[type=color],input[type=file],input[type=date],input[type=time],.s-choice,[role=tab],[role=button],label:has(> input[hidden]){cursor:pointer}
+button:disabled,.btn:disabled,select:disabled{cursor:not-allowed}
+.pill{white-space:nowrap;align-self:flex-start;line-height:1.6}
