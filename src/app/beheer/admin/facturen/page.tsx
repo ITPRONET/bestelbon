@@ -5,6 +5,7 @@ import { adminOnly, PLAN } from "@/lib/admin";
 import { eur } from "@/lib/money";
 import { today } from "@/lib/panel";
 import { PEPPOL, periodLabel, shortDate, shownStatus, STATUS } from "@/lib/invoice";
+import { yearLines } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Facturen" };
@@ -19,7 +20,7 @@ async function monthly(f: FormData) {
   const first = `${period}-01`;
   const last = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const [{ data: cos }, { data: done }, { data: prices }] = await Promise.all([
-    db.from("companies").select("id, plan, started_on, ended_on").in("status", ["actief", "achterstallig"]).lte("started_on", last),
+    db.from("companies").select("id, plan, billing, started_on, ended_on").in("status", ["actief", "achterstallig"]).lte("started_on", last),
     db.from("invoices").select("company_id").eq("period", period),
     db.from("prices").select("key, cents"),
   ]);
@@ -28,7 +29,14 @@ async function monthly(f: FormData) {
   for (const c of cos ?? []) {
     if (have.has(c.id) || (c.ended_on && c.ended_on < first)) continue;
     const cents = prices?.find((p) => p.key === c.plan)?.cents ?? 0;
-    const { error } = await db.rpc("create_invoice", { p_company: c.id, p_period: period, p_lines: [{ description: `Abonnement BestelBon ${PLAN[c.plan]} – ${periodLabel(period)}`, qty: 1, unit_cents: cents }] });
+    let lines = [{ description: `Abonnement BestelBon ${PLAN[c.plan]} – ${periodLabel(period)}`, qty: 1, unit_cents: cents }];
+    if (c.billing === "jaar") {
+      // Jaarlijks vooraf: één factuur per 12 maanden, in de maand waarin het abonnement startte.
+      if (c.started_on.slice(5, 7) !== period.slice(5, 7)) continue;
+      const end = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)) + 10, 1)).toISOString().slice(0, 7);
+      lines = yearLines(PLAN[c.plan], cents, periodLabel(period), periodLabel(end));
+    }
+    const { error } = await db.rpc("create_invoice", { p_company: c.id, p_period: period, p_lines: lines });
     if (!error) n++;
   }
   redirect(`/beheer/admin/facturen?gemaakt=${n}&maand=${period}`);
@@ -67,7 +75,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
       <div className="sgrid">
         <form action={monthly} className="panel" style={{ display: "grid", gap: 10 }}>
           <h2 className="h2">Maandfacturen abonnementen</h2>
-          <p className="muted small" style={{ margin: 0 }}>Maakt één factuur per actief abonnement voor de gekozen maand. Wat al gefactureerd is, wordt overgeslagen.</p>
+          <p className="muted small" style={{ margin: 0 }}>Maakt één factuur per actief abonnement voor de gekozen maand. Klanten met jaarlijkse betaling krijgen een jaarfactuur (10% korting) in hun startmaand. Wat al gefactureerd is, wordt overgeslagen.</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input type="month" name="period" defaultValue={next} className="inp" aria-label="Maand" />
             <button className="btn btn-primary">Maandfacturen maken</button>

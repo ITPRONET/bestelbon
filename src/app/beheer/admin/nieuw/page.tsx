@@ -5,6 +5,7 @@ import { eur } from "@/lib/money";
 import { normVat } from "@/lib/vat";
 import { TERMS_VERSION } from "@/lib/legal";
 import { RESERVED_SLUGS } from "@/lib/reserved";
+import { adminFeeLines, adminFeeWaived, ADMIN_FREE_LABEL } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Nieuwe klant" };
@@ -34,7 +35,7 @@ async function create(f: FormData) {
   const addr = { street: s(f, "street") || null, postcode: s(f, "postcode", 10) || null, city: s(f, "city", 60) || null };
   const { data: co, error: e1 } = await db.from("companies").insert({
     legal_name: s(f, "legal_name"), vat_number: vat.display, ...addr, contact_name: s(f, "contact_name", 80) || null,
-    email, phone: s(f, "phone", 30) || null, plan, status: "installatie", started_on: s(f, "started_on") || undefined,
+    email, phone: s(f, "phone", 30) || null, plan, billing: s(f, "billing") === "jaar" ? "jaar" : "maand", status: "installatie", started_on: s(f, "started_on") || undefined,
     ...(s(f, "aanvraag") ? { terms_version: s(f, "terms_version") || TERMS_VERSION, terms_accepted_at: s(f, "terms_at") || new Date().toISOString() } : {}),
   }).select("id").single();
   if (e1 || !co) back("opslaan");
@@ -65,6 +66,7 @@ async function create(f: FormData) {
       cable && { description: p("printer_kabel").label, qty: cable, unit_cents: p("printer_kabel").cents },
       wifi && { description: p("printer_wifi").label, qty: wifi, unit_cents: p("printer_wifi").cents },
       f.get("install") === "on" && { description: p("installatie").label, qty: 1, unit_cents: p("installatie").cents },
+      ...(f.get("admin") === "on" && prices!.some((x) => x.key === "administratie") ? adminFeeLines(p("administratie").label, p("administratie").cents) : []),
     ].filter(Boolean);
     if (lines.length) await db.rpc("create_invoice", { p_company: co!.id, p_lines: lines, p_note: `Opstart BestelBon voor ${zaak}` });
   }
@@ -106,6 +108,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ f
           <div className="fgrid">
             <label className="field">Pakket<select name="plan" defaultValue={v("plan") || "standaard"}>{prices?.filter((p) => ["standaard", "pro"].includes(p.key)).map((p) => <option key={p.key} value={p.key}>{p.key === "pro" ? "Pro" : "Standaard"} · {eur(p.cents)}/maand</option>)}</select></label>
             <label className="field">Start abonnement<input name="started_on" type="date" defaultValue={v("wanted_start")} /></label>
+            <label className="field">Betaling<select name="billing" defaultValue={v("billing") || "maand"}><option value="maand">Maandelijks</option><option value="jaar">Jaarlijks vooraf (10% korting)</option></select></label>
           </div>
         </section>
         <section className="panel" style={{ display: "grid", gap: 12, alignContent: "start" }}>
@@ -125,6 +128,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ f
           </div>
           <label className="check"><input type="checkbox" name="invoice" defaultChecked /> Meteen factuur maken voor de printers</label>
           <label className="check"><input type="checkbox" name="install" defaultChecked /> Installatie mee factureren</label>
+          <label className="check"><input type="checkbox" name="admin" defaultChecked /> Administratieve kosten (€ 99){adminFeeWaived() ? ` – gratis tot ${ADMIN_FREE_LABEL}` : ""}</label>
           <p className="muted small" style={{ margin: 0 }}>De uitbater krijgt een e-mail om een wachtwoord te kiezen. Het maandabonnement factureer je via Facturen → Maandfacturen.</p>
           <div><button className="btn btn-primary">Klant aanmaken</button></div>
         </section>

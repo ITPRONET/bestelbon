@@ -35,7 +35,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
       {data?.map((a) => (
         <section key={a.id} className="panel" style={{ display: "grid", gap: 8 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-            <div><b style={{ fontSize: 17 }}>{a.restaurant_name}</b> <span className="muted small">· {a.restaurant_type} · {a.plan === "pro" ? "Pro" : "Standaard"} · {a.printers_cable}× kabel, {a.printers_wifi}× wifi</span>{a.gks === "ja" && <span className="pill bad" style={{ marginLeft: 6 }}>Witte kassa</span>}{a.gks === "weet_niet" && <span className="pill wait" style={{ marginLeft: 6 }}>Witte kassa?</span>}</div>
+            <div><b style={{ fontSize: 17 }}>{a.restaurant_name}</b> <span className="muted small">· {a.restaurant_type} · {a.plan === "pro" ? "Pro" : "Standaard"}{a.billing === "jaar" ? " jaarlijks" : ""} · {a.printers_cable}× kabel, {a.printers_wifi}× wifi</span>{a.gks === "ja" && <span className="pill bad" style={{ marginLeft: 6 }}>Witte kassa</span>}{a.gks === "weet_niet" && <span className="pill wait" style={{ marginLeft: 6 }}>Witte kassa?</span>}</div>
             <span className={`pill ${ST[a.status]?.[1]}`}>{ST[a.status]?.[0]}</span>
           </div>
           <div className="small">{a.legal_name} · {a.vat_number} · {a.street}, {a.postcode} {a.city}</div>

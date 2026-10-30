@@ -2,6 +2,7 @@ import Link from "next/link";
 import { publicDb } from "@/lib/supabase";
 import { eur } from "@/lib/money";
 import Signup from "./Signup";
+import { adminFeeWaived, ADMIN_FREE_LABEL } from "@/lib/pricing";
 
 export const revalidate = 300;
 export const metadata = { title: "Aanmelden", description: "Meld je zaak aan voor BestelBon: online bestellen met automatische keukenbonnen." };
@@ -20,7 +21,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
         </div>
         <Signup
           initialPlan={sp.pakket === "pro" ? "pro" : "standaard"}
-          prices={{ standaard: eur(p.standaard ?? 0), pro: eur(p.pro ?? 0), kabel: eur(p.printer_kabel ?? 0), wifi: eur(p.printer_wifi ?? 0), installatie: eur(p.installatie ?? 0) }}
+          prices={{ standaard: eur(p.standaard ?? 0), pro: eur(p.pro ?? 0), kabel: eur(p.printer_kabel ?? 0), wifi: eur(p.printer_wifi ?? 0), installatie: eur(p.installatie ?? 0), jaarStandaard: eur(Math.round((p.standaard ?? 0) * 12 * 0.9)), jaarPro: eur(Math.round((p.pro ?? 0) * 12 * 0.9)), admin: eur(p.administratie ?? 9900), adminFree: adminFeeWaived() ? ADMIN_FREE_LABEL : null }}
         />
       </main>
     </>

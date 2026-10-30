@@ -11,6 +11,7 @@ export const runtime = "nodejs";
 const str = (max: number) => z.string().trim().max(max);
 const Body = z.object({
   plan: z.enum(["standaard", "pro"]),
+  billing: z.enum(["maand", "jaar"]).default("maand"),
   printers_cable: z.coerce.number().int().min(0).max(5),
   printers_wifi: z.coerce.number().int().min(0).max(5),
   restaurant_name: str(60).min(2), restaurant_type: str(40).optional(),
@@ -42,7 +43,7 @@ export async function POST(req: Request) {
   if ((count ?? 0) >= 5) return NextResponse.json({ error: "Te veel aanmeldingen. Mail ons op info@bestelbon.eu." }, { status: 429 });
 
   const row = {
-    plan: b.plan, printers_cable: b.printers_cable, printers_wifi: b.printers_wifi,
+    plan: b.plan, billing: b.billing, printers_cable: b.printers_cable, printers_wifi: b.printers_wifi,
     restaurant_name: b.restaurant_name, restaurant_type: b.restaurant_type || null, wanted_start: b.wanted_start || null, message: b.message || null, gks: b.gks ?? null,
     legal_name: b.legal_name, vat_number: vat.display, contact_name: b.contact_name, street: b.street, postcode: b.postcode, city: b.city,
     email: b.email.toLowerCase(), phone: b.phone, terms_version: TERMS_VERSION, ip_hash,
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
 
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "";
   const summary = [
-    `Zaak: ${row.restaurant_name} (${row.restaurant_type ?? "-"})`, `Pakket: ${row.plan === "pro" ? "Pro" : "Standaard"}`,
+    `Zaak: ${row.restaurant_name} (${row.restaurant_type ?? "-"})`, `Pakket: ${row.plan === "pro" ? "Pro" : "Standaard"} · ${row.billing === "jaar" ? "jaarlijks vooraf (10% korting)" : "maandelijks"}`,
     `Printers: ${row.printers_cable}× kabel, ${row.printers_wifi}× wifi`, `Gewenste start: ${row.wanted_start ?? "-"}`, `Witte kassa: ${row.gks === "ja" ? "ja" : row.gks === "weet_niet" ? "weet niet" : "nee"}`, "",
     `${row.legal_name} · ${row.vat_number}`, `${row.street}, ${row.postcode} ${row.city}`, `${row.contact_name} · ${row.phone} · ${row.email}`,
     row.message ? `\nOpmerking: ${row.message}` : "",

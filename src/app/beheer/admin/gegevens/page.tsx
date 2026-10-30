@@ -28,7 +28,7 @@ async function save(f: FormData) {
 async function savePrices(f: FormData) {
   "use server";
   const db = await adminOnly();
-  for (const k of ["standaard", "pro", "printer_kabel", "printer_wifi", "installatie"]) {
+  for (const k of ["standaard", "pro", "printer_kabel", "printer_wifi", "installatie", "administratie"]) {
     const c = toCents(f.get(k));
     if (c !== null) await db.from("prices").update({ cents: c }).eq("key", k);
   }

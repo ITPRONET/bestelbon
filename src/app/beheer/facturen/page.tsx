@@ -32,7 +32,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
   const { db, restaurants, current } = await panel(sp.zaak);
   if (!current) return null;
   const [{ data: co }, { data: invoices }, { data: prices }, sel] = await Promise.all([
-    db.from("companies").select("id, legal_name, vat_number, street, postcode, city, contact_name, email, phone, plan, status, started_on").eq("id", current.company_id).single(),
+    db.from("companies").select("id, legal_name, vat_number, street, postcode, city, contact_name, email, phone, plan, billing, status, started_on").eq("id", current.company_id).single(),
     db.from("invoices").select("id, number, issued_on, due_on, status, total_cents, ogm").eq("company_id", current.company_id).order("seq", { ascending: false }),
     db.from("prices").select("key, cents"),
     seller(),
@@ -54,7 +54,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
         </div>
       )}
       <div className="kpis">
-        <div className="kpi"><span>Pakket</span><b className="kt">{co.plan === "pro" ? "Pro" : "Standaard"}</b><small>{eur(monthly)} per maand excl. btw</small></div>
+        <div className="kpi"><span>Pakket</span><b className="kt">{co.plan === "pro" ? "Pro" : "Standaard"}</b><small>{co.billing === "jaar" ? `${eur(Math.round(monthly * 12 * 0.9))} per jaar excl. btw (10% korting)` : `${eur(monthly)} per maand excl. btw`}</small></div>
         <div className="kpi"><span>Status</span><b className="kt">{{ installatie: "Installatie", actief: "Actief", achterstallig: "Achterstallig", opgezegd: "Opgezegd" }[co.status as string]}</b><small>sinds {longDate(co.started_on)}</small></div>
         <div className="kpi"><span>Facturen</span><b>{invoices?.length ?? 0}</b><small>{unpaid.length} open</small></div>
         <div className="kpi"><span>Pakket wijzigen?</span><b className="kt" style={{ fontSize: 15 }}>info@bestelbon.eu</b><small>wij passen het aan</small></div>

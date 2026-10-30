@@ -22,7 +22,7 @@ async function saveCompany(f: FormData) {
   await db.from("companies").update({
     legal_name: s(f, "legal_name"), vat_number: vat.display, street: s(f, "street") || null, postcode: s(f, "postcode", 10) || null,
     city: s(f, "city", 60) || null, contact_name: s(f, "contact_name", 80) || null, email: s(f, "email"), phone: s(f, "phone", 30) || null,
-    plan: s(f, "plan") === "pro" ? "pro" : "standaard", status: status in CO_STATUS ? status : "installatie",
+    plan: s(f, "plan") === "pro" ? "pro" : "standaard", billing: s(f, "billing") === "jaar" ? "jaar" : "maand", status: status in CO_STATUS ? status : "installatie",
     started_on: s(f, "started_on") || undefined, ended_on: s(f, "ended_on") || null,
   }).eq("id", id);
   redirect(`/beheer/admin/bedrijf/${id}?ok=1`);
@@ -196,6 +196,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
             <label className="field">E-mail<input name="email" type="email" defaultValue={co.email} required /></label>
             <label className="field">Telefoon<input name="phone" defaultValue={co.phone ?? ""} /></label>
             <label className="field">Pakket<select name="plan" defaultValue={co.plan}><option value="standaard">Standaard</option><option value="pro">Pro</option></select></label>
+            <label className="field">Betaling<select name="billing" defaultValue={co.billing}><option value="maand">Maandelijks</option><option value="jaar">Jaarlijks vooraf (−10%)</option></select></label>
             <label className="field">Status<select name="status" defaultValue={co.status}>{Object.entries(CO_STATUS).map(([k, [l]]) => <option key={k} value={k}>{l}</option>)}</select></label>
             <label className="field">Start<input type="date" name="started_on" defaultValue={co.started_on} /></label>
             <label className="field">Einde<input type="date" name="ended_on" defaultValue={co.ended_on ?? ""} /></label>
