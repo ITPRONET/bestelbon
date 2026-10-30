@@ -57,7 +57,7 @@ const Late = () => (
 );
 
 function Paper({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: "flex", flexDirection: "column", width: W, padding: `${PAD}px ${PAD}px 40px`, background: "#fff", color: "#000", fontFamily: MONO }}>{children}</div>;
+  return <div style={{ display: "flex", flexDirection: "column", boxSizing: "border-box", width: W, padding: `${PAD}px ${PAD}px 40px`, background: "#fff", color: "#000", fontFamily: MONO }}>{children}</div>;
 }
 
 /* ---------- tickets ---------- */

@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { after } from "next/server";
@@ -32,6 +33,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Vul je adres in voor levering." }, { status: 400 });
   }
   const db = adminDb();
+
+  // Tegen spam: maximaal 6 bestellingen per 15 minuten vanaf hetzelfde adres.
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim();
+  const ip_hash = createHash("sha256").update(ip + (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "")).digest("hex").slice(0, 32);
+  const { count: recent } = await db.from("orders").select("id", { count: "exact", head: true }).eq("ip_hash", ip_hash).gte("created_at", new Date(Date.now() - 15 * 60_000).toISOString());
+  if ((recent ?? 0) >= 6) return NextResponse.json({ error: "Te veel bestellingen na elkaar. Wacht even of bel de zaak." }, { status: 429 });
 
   const { data: r } = await db.from("restaurants").select("id, name, is_open, delivery_fee_cents, min_order_cents, prep_minutes").eq("slug", b.slug).maybeSingle();
   if (!r || !r.is_open) return NextResponse.json({ error: "Deze zaak neemt nu geen online bestellingen aan." }, { status: 409 });
@@ -96,7 +103,7 @@ export async function POST(req: Request) {
     subtotal_cents: subtotal, delivery_fee_cents: fee, total_cents: subtotal + fee,
     customer_name: b.name, customer_phone: b.phone, customer_email: b.email,
     address: b.mode === "levering" ? b.address : null, postcode: b.mode === "levering" ? b.postcode : null, city: b.mode === "levering" ? b.city : null,
-    note: b.note || null,
+    note: b.note || null, ip_hash,
   }).select("id, day_number").single();
   if (error || !order) return NextResponse.json({ error: "Bestelling kon niet worden opgeslagen. Probeer opnieuw." }, { status: 500 });
 

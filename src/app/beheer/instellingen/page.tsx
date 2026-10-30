@@ -36,8 +36,8 @@ async function saveBrand(f: FormData) {
   const update: Record<string, string> = { brand_primary: hex(s(f, "primary"), "#16213e"), brand_accent: hex(s(f, "accent"), "#ff6a00") };
   const logo = f.get("logo");
   if (logo instanceof File && logo.size > 0) {
-    if (logo.size > 2 * 1024 * 1024 || !/^image\/(png|jpeg|webp|svg\+xml)$/.test(logo.type)) redirect(`/beheer/instellingen?fout=logo`);
-    const ext = logo.type === "image/svg+xml" ? "svg" : logo.type.split("/")[1];
+    if (logo.size > 2 * 1024 * 1024 || !/^image\/(png|jpeg|webp)$/.test(logo.type)) redirect(`/beheer/instellingen?fout=logo`);
+    const ext = logo.type.split("/")[1];
     const path = `${rid}/logo-${Date.now()}.${ext}`;
     const { error } = await db.storage.from("zaak-media").upload(path, logo, { contentType: logo.type, upsert: false });
     if (!error) update.logo_path = path;
@@ -158,7 +158,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
       <PanelNav active="instellingen" restaurants={restaurants} current={current} />
       <h1 className="ph">Instellingen</h1>
       {sp.ok && <div className="okmsg">Opgeslagen. Je bestelpagina is bijgewerkt.</div>}
-      {sp.fout === "logo" && <div className="alert">Het logo moet een PNG, JPG, WebP of SVG van maximaal 2 MB zijn.</div>}
+      {sp.fout === "logo" && <div className="alert">Het logo moet een PNG, JPG of WebP van maximaal 2 MB zijn.</div>}
       <div className="sgrid">
         <form action={saveZaak} className="panel" style={{ display: "grid", gap: 12, alignContent: "start" }}>
           <input type="hidden" name="rid" value={r.id} />
@@ -190,7 +190,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
                 <b>{r.name}</b>
                 <span className="dot2" style={{ background: r.brand_accent }}>+</span>
               </div>
-              <label className="field">Logo (PNG, JPG, WebP of SVG, max. 2 MB)<input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" /></label>
+              <label className="field">Logo (PNG, JPG of WebP, max. 2 MB)<input type="file" name="logo" accept="image/png,image/jpeg,image/webp" /></label>
               <div className="fgrid">
                 <label className="field">Hoofdkleur<input type="color" name="primary" defaultValue={r.brand_primary} /></label>
                 <label className="field">Knoppen<input type="color" name="accent" defaultValue={r.brand_accent} /></label>
