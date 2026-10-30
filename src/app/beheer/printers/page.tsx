@@ -67,7 +67,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
         {(printers ?? []).map((p) => (
           <div className="panel pcard" key={p.id}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-              <div><b>{p.name}</b><div className="muted small">{p.role === "keuken" ? "Keukenbon" : p.role === "bezorging" ? "Bezorgbon" : "Barbon"} · {p.connection} · {p.copies}×</div></div>
+              <div><b>{p.name}</b><div className="muted small">{p.role === "keuken" ? ((printers ?? []).some((x) => x.role === "bezorging") ? "Keukenbon" : "Keukenbon + bezorgbon") : p.role === "bezorging" ? "Bezorgbon" : "Barbon"} · {p.connection} · {p.copies}×</div></div>
               <span className={`pill ${online(p.last_seen_at) ? "ok" : "wait"}`}>{online(p.last_seen_at) ? "Online" : p.last_seen_at ? "Offline" : "Nog geen contact"}</span>
             </div>
             <div className="muted small">Laatste contact: {ago(p.last_seen_at)}</div>
@@ -85,7 +85,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
         <input type="hidden" name="restaurant_id" value={current.id} />
         <label className="field">Naam<input name="name" defaultValue={(printers ?? []).some((p) => p.role === "keuken") ? "Bezorgprinter" : "Keukenprinter"} /></label>
         <div className="fgrid">
-          <label className="field">Drukt af<select name="role" defaultValue={(printers ?? []).some((p) => p.role === "keuken") ? "bezorging" : "keuken"}><option value="keuken">Keukenbon</option><option value="bezorging">Bezorgbon</option><option value="bar">Barbon</option></select></label>
+          <label className="field">Drukt af<select name="role" defaultValue={(printers ?? []).some((p) => p.role === "keuken") ? "bezorging" : "keuken"}><option value="keuken">Keuken (+ bezorgbon als er geen bezorgprinter is)</option><option value="bezorging">Alleen bezorgbon</option><option value="bar">Barbon</option></select></label>
           <label className="field">Verbinding<select name="connection"><option value="kabel">Netwerkkabel</option><option value="wifi">Wifi</option></select></label>
           <label className="field">Kopieën<select name="copies"><option>1</option><option>2</option><option>3</option></select></label>
         </div>
