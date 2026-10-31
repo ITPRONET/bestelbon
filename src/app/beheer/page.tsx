@@ -23,7 +23,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
     .select("id, status, day_number, created_at, mode, requested_time, payment_method, payment_status, total_cents, delivery_fee_cents, customer_name, customer_phone, address, postcode, city, note, late_print, order_lines ( item_name, options, qty, unit_cents )")
     .eq("restaurant_id", current.id).eq("business_day", dag).order("created_at", { ascending: false });
   const rows = (data ?? []).map((o) => ({ ...o, late: o.late_print })) as unknown as Row[];
-  const sum = rows.reduce((s, o) => s + o.total_cents, 0);
+  const sum = rows.filter((o) => o.status !== "geannuleerd" && o.status !== "wacht_op_betaling").reduce((s, o) => s + o.total_cents, 0);
   const q = (d: string) => `?zaak=${current.slug}&dag=${d}`;
 
   return (

@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   const { data: r } = await db.from("restaurants").select("id, name, slug").eq("slug", zaak).maybeSingle();
   if (!r) return new Response("Niet gevonden", { status: 404 });
   let q = db.from("orders").select("business_day, day_number, created_at, mode, requested_time, status, payment_method, payment_status, subtotal_cents, delivery_fee_cents, total_cents, order_lines ( item_name, options, qty, unit_cents )")
-    .eq("restaurant_id", r.id).order("created_at");
+    .eq("restaurant_id", r.id).not("status", "in", "(wacht_op_betaling,geannuleerd)").order("created_at");
   if (/^\d{4}-\d{2}-\d{2}$/.test(van)) q = q.gte("business_day", van);
   if (/^\d{4}-\d{2}-\d{2}$/.test(tot)) q = q.lte("business_day", tot);
   const { data, error } = await q; // RLS: alleen eigen zaak

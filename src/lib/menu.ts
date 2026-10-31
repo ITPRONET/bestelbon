@@ -28,8 +28,11 @@ export async function loadMenu(slug: string): Promise<Menu | null> {
       })),
     }));
   // Plan is not public data; the storefront only needs to know whether branding is allowed.
-  const { plan, trader } = await companyOf(restaurant.company_id);
-  return { restaurant, categories, plan, trader, hours: hours ?? [], zones: zones ?? [] };
+  const [{ plan, trader }, online] = await Promise.all([
+    companyOf(restaurant.company_id),
+    import("./mollie").then((m) => m.onlineReady(restaurant.id)).catch(() => false),
+  ]);
+  return { restaurant, categories, plan, trader, online, hours: hours ?? [], zones: zones ?? [] };
 }
 
 /** Plan (for branding) and the seller's legal details (consumer law: the shop must show who sells). */

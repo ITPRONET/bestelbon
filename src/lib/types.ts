@@ -12,6 +12,6 @@ export type Restaurant = {
   company_id: string;
 };
 export type Trader = { legal_name: string; vat_number: string; street: string | null; postcode: string | null; city: string | null; email: string | null; phone: string | null };
-export type Menu = { restaurant: Restaurant; categories: Category[]; plan: "standaard" | "pro"; trader?: Trader | null; hours: import("./hours").HourRow[]; zones: import("./hours").Zone[] };
+export type Menu = { restaurant: Restaurant; categories: Category[]; plan: "standaard" | "pro"; trader?: Trader | null; online?: boolean; hours: import("./hours").HourRow[]; zones: import("./hours").Zone[] };
 
 export type CartLine = { itemId: string; choiceIds: string[]; qty: number };

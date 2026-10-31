@@ -6,6 +6,7 @@ import { userDb } from "@/lib/supabase-server";
 import { toCents, fromCents } from "@/lib/euro";
 import { DAYS, cleanPostcode } from "@/lib/hours";
 import { adminDb } from "@/lib/supabase";
+import { disconnect as mollieDisconnect, mollieEnabled, refreshAccount, testmode } from "@/lib/mollie";
 import { addDomain, cleanDomain, domainStatus, domainsEnabled, isApex, removeDomain } from "@/lib/vercel";
 
 export const dynamic = "force-dynamic";
@@ -135,7 +136,41 @@ async function saveZones(f: FormData) {
   redirect(`/beheer/instellingen?zaak=${r.slug}&ok=1#zones`);
 }
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ zaak?: string; ok?: string; fout?: string; domein?: string }> }) {
+/** Restaurant the user may manage (RLS), or null. */
+async function myRestaurant(rid: string) {
+  const db = await userDb();
+  const { data } = await db.from("restaurants").select("id, slug").eq("id", rid).maybeSingle();
+  return data ? { db, r: data } : null;
+}
+
+async function savePay(f: FormData) {
+  "use server";
+  const m = await myRestaurant(s(f, "rid"));
+  if (!m) redirect("/beheer/instellingen");
+  const { data: a } = await adminDb().from("payment_accounts").select("profile_id").eq("restaurant_id", m.r.id).maybeSingle();
+  await m.db.from("restaurants").update({ online_payments: !!a?.profile_id && f.get("online_payments") === "on" }).eq("id", m.r.id);
+  revalidatePath(`/${m.r.slug}`);
+  redirect(`/beheer/instellingen?zaak=${m.r.slug}&ok=1#betalen`);
+}
+
+async function payRefresh(f: FormData) {
+  "use server";
+  const m = await myRestaurant(s(f, "rid"));
+  if (!m) redirect("/beheer/instellingen");
+  await refreshAccount(m.r.id).catch(() => null);
+  redirect(`/beheer/instellingen?zaak=${m.r.slug}#betalen`);
+}
+
+async function payDisconnect(f: FormData) {
+  "use server";
+  const m = await myRestaurant(s(f, "rid"));
+  if (!m) redirect("/beheer/instellingen");
+  await mollieDisconnect(m.r.id);
+  revalidatePath(`/${m.r.slug}`);
+  redirect(`/beheer/instellingen?zaak=${m.r.slug}&mollie=los#betalen`);
+}
+
+export default async function Page({ searchParams }: { searchParams: Promise<{ zaak?: string; ok?: string; fout?: string; domein?: string; mollie?: string }> }) {
   const sp = await searchParams;
   const { db, restaurants, current } = await panel(sp.zaak);
   if (!current) return null;
@@ -154,6 +189,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
   }, {}));
   const storage = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/zaak-media/`;
   if (!r) return null;
+  const { data: pay } = await adminDb().from("payment_accounts").select("organization_name, profile_id, can_receive, onboarding_status, connected_at").eq("restaurant_id", current.id).maybeSingle();
+  const MOLLIE_MSG: Record<string, [string, string]> = {
+    ok: ["okmsg", "Je Mollie-account is gekoppeld."], los: ["okmsg", "Mollie is ontkoppeld. Klanten betalen nu bij levering of afhaling."],
+    geannuleerd: ["alert", "Koppelen geannuleerd."], fout: ["alert", "Koppelen met Mollie is niet gelukt. Probeer opnieuw of mail info@bestelbon.eu."],
+  };
   return (
     <>
       <PanelNav active="instellingen" restaurants={restaurants} current={current} />
@@ -204,6 +244,36 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
           )}
         </section>
       </div>
+      <section className="panel" id="betalen" style={{ display: "grid", gap: 12 }}>
+        <h2 className="h2">Online betalen <span className="pill">Mollie</span></h2>
+        {sp.mollie && MOLLIE_MSG[sp.mollie] && <div className={MOLLIE_MSG[sp.mollie][0]} style={{ margin: 0 }}>{MOLLIE_MSG[sp.mollie][1]}</div>}
+        {!mollieEnabled() ? (
+          <p className="muted" style={{ margin: 0 }}>Binnenkort: klanten betalen online met Bancontact, Payconiq, kaart of Apple Pay. Het geld komt rechtstreeks op je eigen rekening.</p>
+        ) : !pay ? (
+          <>
+            <p style={{ margin: 0 }}>Koppel je eigen Mollie-account. Klanten betalen dan online met Bancontact, Payconiq, kaart of Apple Pay, en <b>het geld komt rechtstreeks op jouw rekening</b>. BestelBon rekent hier niets voor aan; je betaalt enkel de transactiekost van Mollie.</p>
+            <p className="muted small" style={{ margin: 0 }}>Nog geen Mollie-account? Je maakt er een aan tijdens het koppelen. Bonnen van online bestellingen printen pas als de betaling gelukt is.</p>
+            <div><a className="btn btn-primary" href={`/api/mollie/connect?rid=${current.id}`}>Koppel Mollie</a></div>
+          </>
+        ) : (
+          <>
+            <p style={{ margin: 0 }}>Gekoppeld met <b>{pay.organization_name ?? "Mollie"}</b>{testmode() && <span className="pill wait" style={{ marginLeft: 8 }}>testmodus</span>}</p>
+            {!pay.can_receive && !testmode() && <div className="alert" style={{ margin: 0 }}>Mollie moet je account nog controleren{pay.onboarding_status ? ` (status: ${pay.onboarding_status})` : ""}. Rond de stappen in je Mollie-dashboard af en klik dan op Status vernieuwen.</div>}
+            {!pay.profile_id && <div className="alert" style={{ margin: 0 }}>Er is nog geen websiteprofiel in je Mollie-account. Maak er een aan in Mollie en klik op Status vernieuwen.</div>}
+            <form action={savePay} style={{ display: "grid", gap: 10 }}>
+              <input type="hidden" name="rid" value={current.id} />
+              <label className="check big"><input type="checkbox" name="online_payments" defaultChecked={r.online_payments} disabled={!pay.profile_id} /> Klanten kunnen online betalen</label>
+              <div><button className="btn btn-primary">Opslaan</button></div>
+            </form>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <form action={payRefresh}><input type="hidden" name="rid" value={current.id} /><button className="btn">Status vernieuwen</button></form>
+              <details className="confirm"><summary className="btn btn-ghost">Ontkoppelen</summary>
+                <form action={payDisconnect} className="confirm-box"><input type="hidden" name="rid" value={current.id} /><span className="small">Mollie ontkoppelen? Klanten kunnen dan niet meer online betalen.</span><button className="btn btn-danger">Ja, ontkoppelen</button></form>
+              </details>
+            </div>
+          </>
+        )}
+      </section>
       <section className="panel" id="domein" style={{ display: "grid", gap: 12 }}>
         <h2 className="h2">Eigen domeinnaam <span className="pill">{pro ? "Pro" : "Pro-functie"}</span></h2>
         {!pro ? (

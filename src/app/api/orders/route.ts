@@ -1,9 +1,9 @@
 import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { after } from "next/server";
 import { adminDb } from "@/lib/supabase";
-import { sendOrderReceived } from "@/lib/order-mail";
+import { queueTickets } from "@/lib/print-jobs";
+import { createPayment, onlineReady, siteUrl } from "@/lib/mollie";
 import { cleanPostcode, findZone, openState, timeSlots, weekMinute } from "@/lib/hours";
 
 export const runtime = "nodejs";
@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 const Body = z.object({
   slug: z.string().min(3).max(40),
   mode: z.enum(["levering", "afhalen"]),
-  payment: z.enum(["cash"]), // "online" komt met Mollie
+  payment: z.enum(["cash", "online"]).default("cash"),
   time: z.string().max(40).default("Zo snel mogelijk"),
   name: z.string().trim().min(2).max(80),
   phone: z.string().trim().min(6).max(30),
@@ -40,8 +40,10 @@ export async function POST(req: Request) {
   const { count: recent } = await db.from("orders").select("id", { count: "exact", head: true }).eq("ip_hash", ip_hash).gte("created_at", new Date(Date.now() - 15 * 60_000).toISOString());
   if ((recent ?? 0) >= 6) return NextResponse.json({ error: "Te veel bestellingen na elkaar. Wacht even of bel de zaak." }, { status: 429 });
 
-  const { data: r } = await db.from("restaurants").select("id, name, is_open, delivery_fee_cents, min_order_cents, prep_minutes").eq("slug", b.slug).maybeSingle();
+  const { data: r } = await db.from("restaurants").select("id, slug, name, is_open, delivery_fee_cents, min_order_cents, prep_minutes").eq("slug", b.slug).maybeSingle();
   if (!r || !r.is_open) return NextResponse.json({ error: "Deze zaak neemt nu geen online bestellingen aan." }, { status: 409 });
+  const online = b.payment === "online";
+  if (online && !(await onlineReady(r.id))) return NextResponse.json({ error: "Online betalen is bij deze zaak nu niet mogelijk. Kies betalen bij levering of afhaling." }, { status: 409 });
 
   // Openingsuren en gekozen tijdstip (een paar minuten speling voor wie lang over de bestelling deed).
   const [{ data: hours }, { data: zones }] = await Promise.all([
@@ -62,10 +64,10 @@ export async function POST(req: Request) {
   }
 
   // Printers: is er minstens één online? Anders pauzeren we (zie stroomuitval-regels).
-  const { data: printers } = await db.from("printers").select("id, role, copies, last_seen_at").eq("restaurant_id", r.id);
-  const online = (printers ?? []).filter((p) => p.last_seen_at && Date.now() - new Date(p.last_seen_at).getTime() < PRINTER_TIMEOUT_MS);
+  const { data: printers } = await db.from("printers").select("id, last_seen_at").eq("restaurant_id", r.id);
+  const live = (printers ?? []).filter((p) => p.last_seen_at && Date.now() - new Date(p.last_seen_at).getTime() < PRINTER_TIMEOUT_MS);
   const allowWithout = ["true", "1", "yes", "ja"].includes((process.env.ALLOW_ORDERS_WITHOUT_PRINTER ?? "").trim().replace(/^["']|["']$/g, "").toLowerCase());
-  if (!online.length && !allowWithout) {
+  if (!live.length && !allowWithout) {
     return NextResponse.json({ error: "Online bestellen is even niet mogelijk. Bel de zaak rechtstreeks." }, { status: 503 });
   }
 
@@ -99,7 +101,7 @@ export async function POST(req: Request) {
 
   const { data: order, error } = await db.from("orders").insert({
     restaurant_id: r.id, business_day: new Date().toISOString().slice(0, 10), day_number: 0, // trigger zet de echte waarden
-    mode: b.mode, requested_time: b.time, status: "in_wachtrij", payment_method: "cash", payment_status: "open",
+    mode: b.mode, requested_time: b.time, status: online ? "wacht_op_betaling" : "in_wachtrij", payment_method: online ? "online" : "cash", payment_status: "open",
     subtotal_cents: subtotal, delivery_fee_cents: fee, total_cents: subtotal + fee,
     customer_name: b.name, customer_phone: b.phone, customer_email: b.email,
     address: b.mode === "levering" ? b.address : null, postcode: b.mode === "levering" ? b.postcode : null, city: b.mode === "levering" ? b.city : null,
@@ -109,22 +111,20 @@ export async function POST(req: Request) {
 
   await db.from("order_lines").insert(lines.map((l) => ({ ...l, order_id: order.id, restaurant_id: r.id })));
 
-  // Printjobs: keukenbon(nen), en bij levering een bezorgbon (of op de keukenprinter als er geen bezorgprinter is).
-  const all = printers ?? [];
-  const kitchen = all.filter((p) => p.role === "keuken");
-  const delivery = all.filter((p) => p.role === "bezorging");
-  const jobs: { printer_id: string; order_id: string; restaurant_id: string; kind: "keuken" | "bezorging" }[] = [];
-  for (const p of kitchen) for (let i = 0; i < p.copies; i++) jobs.push({ printer_id: p.id, order_id: order.id, restaurant_id: r.id, kind: "keuken" });
-  if (b.mode === "levering") {
-    const targets = delivery.length ? delivery : kitchen.slice(0, 1);
-    for (const p of targets) for (let i = 0; i < (delivery.length ? p.copies : 1); i++) jobs.push({ printer_id: p.id, order_id: order.id, restaurant_id: r.id, kind: "bezorging" });
-  }
-  if (jobs.length) await db.from("print_jobs").insert(jobs);
-  else {
-    // Geen printer (testfase): de klant krijgt de bevestiging meteen.
-    await db.from("orders").update({ customer_notified_at: new Date().toISOString() }).eq("id", order.id);
-    after(() => sendOrderReceived(order.id).then(() => undefined));
+  if (online) {
+    // Betaling bij Mollie op het account van de zaak. Bonnen printen pas als Mollie "betaald" meldt (webhook).
+    try {
+      const pay = await createPayment(r.id, { orderId: order.id, number: order.day_number, restaurantName: r.name, cents: subtotal + fee, redirectUrl: `${siteUrl()}/${r.slug}/bestelling/${order.id}` });
+      if (!pay.checkoutUrl) throw new Error("geen checkout");
+      await db.from("orders").update({ mollie_payment_id: pay.id }).eq("id", order.id);
+      return NextResponse.json({ id: order.id, number: order.day_number, checkoutUrl: pay.checkoutUrl });
+    } catch (e) {
+      console.error("mollie create", e);
+      await db.from("orders").update({ status: "geannuleerd", payment_status: "mislukt" }).eq("id", order.id);
+      return NextResponse.json({ error: "Online betalen lukt nu niet. Kies betalen bij levering of afhaling, of probeer het later opnieuw." }, { status: 502 });
+    }
   }
 
+  await queueTickets(order.id, r.id, b.mode);
   return NextResponse.json({ id: order.id, number: order.day_number });
 }

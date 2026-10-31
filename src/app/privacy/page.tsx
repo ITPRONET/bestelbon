@@ -54,7 +54,7 @@ export default async function Page() {
       <p>De zaak waar je bestelt, en de dienstverleners die we nodig hebben om BestelBon te laten werken:</p>
       <table className="tbl"><thead><tr><th>Partij</th><th>Waarvoor</th><th>Waar</th></tr></thead>
         <tbody>{SUBPROCESSORS.map(([a, b, c]) => <tr key={a}><td>{a}</td><td>{b}</td><td>{c}</td></tr>)}</tbody></table>
-      <p>Zodra online betalen beschikbaar is, verwerkt de betaaldienst je betaling. Dat staat dan in deze lijst.</p>
+      <p>Betaal je online, dan verwerkt Mollie B.V. (Amsterdam) je betaling in opdracht van de zaak, op het Mollie-account van de zaak zelf. Mollie is daarvoor zelf verantwoordelijk volgens zijn eigen privacyverklaring. BestelBon ontvangt van Mollie alleen of de betaling gelukt is, geen kaart- of rekeninggegevens.</p>
 
       <h2>7. Cookies</h2>
       <p>De bestelpagina en de BestelBon-gids zetten geen cookies om je te volgen. De postcode die je in de gids zoekt, gebruiken we alleen om de lijst met zaken te tonen; we koppelen ze niet aan jou. Je laatste postcode en je bestelgegevens worden in je eigen browser onthouden, zodat je ze niet opnieuw hoeft in te vullen. In het beheerpaneel voor zaken gebruiken we alleen een noodzakelijke cookie om je ingelogd te houden.</p>

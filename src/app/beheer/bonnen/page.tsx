@@ -15,7 +15,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
   const soort = sp.soort === "keuken" || sp.soort === "bezorging" ? sp.soort : "alle";
   const { data } = await db.from("orders")
     .select("id, day_number, created_at, mode, requested_time, payment_method, payment_status, total_cents, delivery_fee_cents, customer_name, customer_phone, address, postcode, city, note, late_print, order_lines ( item_name, options, qty, unit_cents )")
-    .eq("restaurant_id", current.id).eq("business_day", dag).order("created_at");
+    .eq("restaurant_id", current.id).eq("business_day", dag).not("status", "in", "(wacht_op_betaling,geannuleerd)").order("created_at");
   const rows = (data ?? []) as unknown as (TicketOrder & { id: string; late_print: boolean; order_lines: TicketLine[] })[];
   const base = `/beheer/bonnen?zaak=${current.slug}&dag=${dag}`;
   return (

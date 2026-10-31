@@ -12,12 +12,14 @@ type Sheet = null | { kind: "item"; item: Item } | { kind: "checkout" } | { kind
 const SAVED = "bb_klant";
 
 export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: string }) {
-  const { restaurant: r, categories: allCats, plan, hours, zones, trader } = menu;
+  const { restaurant: r, categories: allCats, plan, hours, zones, trader, online } = menu;
   const categories = useMemo(() => allCats.filter((c) => c.menu_items.length), [allCats]);
   const router = useRouter();
   const items = useMemo(() => new Map(categories.flatMap((c) => c.menu_items).map((i) => [i.id, i])), [categories]);
   const [cart, setCart] = useState<Line[]>([]);
   const [mode, setMode] = useState<Mode>("levering");
+  const [pay, setPay] = useState<"online" | "cash">(online ? "online" : "cash");
+  const CART_KEY = `bb_cart_${r.slug}`;
   const [sheet, setSheetState] = useState<Sheet>(null);
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState(false);
@@ -33,6 +35,11 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
       if (pc && /^\d{4}$/.test(pc)) setF((x) => (x.postcode ? x : { ...x, postcode: pc }));
     } catch { /* ignore */ }
   }, []);
+
+  // Back from a cancelled online payment: restore the cart.
+  useEffect(() => {
+    try { const c = JSON.parse(sessionStorage.getItem(CART_KEY) ?? "null"); if (Array.isArray(c) && c.length) setCart(c); sessionStorage.removeItem(CART_KEY); } catch { /* ignore */ }
+  }, [CART_KEY]);
 
   // Remember the customer's details on this device (convenience only).
   useEffect(() => {
@@ -94,11 +101,16 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
     setBusy(true); setError("");
     const res = await fetch("/api/orders", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slug: r.slug, mode, payment: "cash", ...f, lines: cart.map(({ itemId, choiceIds, qty }) => ({ itemId, choiceIds, qty })) }),
+      body: JSON.stringify({ slug: r.slug, mode, payment: online ? pay : "cash", ...f, lines: cart.map(({ itemId, choiceIds, qty }) => ({ itemId, choiceIds, qty })) }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { setError(data.error ?? "Er ging iets mis. Probeer opnieuw."); setBusy(false); return; }
     try { const { name, phone, email, address, postcode, city } = f; localStorage.setItem(SAVED, JSON.stringify({ name, phone, email, address, postcode, city })); } catch { /* ignore */ }
+    if (data.checkoutUrl) {
+      try { sessionStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch { /* ignore */ }
+      window.location.href = data.checkoutUrl; // naar Mollie; daarna terug naar de statuspagina
+      return;
+    }
     setSheetState(null);
     router.replace(`/${r.slug}/bestelling/${data.id}`);
   }
@@ -228,7 +240,7 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
               <p className="small"><b>Verkoper</b><br />{trader.legal_name}<br />{[trader.street, [trader.postcode, trader.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")}{trader.street || trader.city ? <br /> : null}Btw {trader.vat_number}
                 {trader.email && <><br /><a href={`mailto:${trader.email}`}>{trader.email}</a></>}{trader.phone && <><br /><a href={`tel:${trader.phone.replace(/\s/g, "")}`}>{trader.phone}</a></>}</p>
             )}
-            <p className="muted small">Betalen bij levering of afhaling. Je koopt rechtstreeks bij deze zaak; BestelBon levert enkel de bestelsoftware. <Link href="/privacy">Privacy</Link></p>
+            <p className="muted small">{online ? "Online betalen of betalen bij levering of afhaling." : "Betalen bij levering of afhaling."} Je koopt rechtstreeks bij deze zaak; BestelBon levert enkel de bestelsoftware. <Link href="/privacy">Privacy</Link></p>
           </div>
         </SheetFrame>
       )}
@@ -238,7 +250,7 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
             <>
               {error && <p className="err" role="alert" style={{ margin: "0 0 8px" }}>{error}</p>}
               <button className="s-cta" disabled={!cart.length || short > 0 || outZone || busy || !canOrder} onClick={order}>
-                {busy ? "Bezig…" : !canOrder ? "Nu gesloten" : short > 0 ? `Nog ${eur(short)} tot het minimum` : `Bestelling plaatsen · ${eur(sub + fee)}`}
+                {busy ? "Bezig…" : !canOrder ? "Nu gesloten" : short > 0 ? `Nog ${eur(short)} tot het minimum` : online && pay === "online" ? `Bestellen en betalen · ${eur(sub + fee)}` : `Bestelling plaatsen · ${eur(sub + fee)}`}
               </button>
             </>
           }>
@@ -271,12 +283,21 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
             </>}
             <Field label="Opmerking" hint="optioneel" value={f.note} onChange={(v) => setF({ ...f, note: v })} placeholder={mode === "levering" ? "bv. bel aan bij nr. 2" : "bv. extra servetten"} />
 
+            {online && <>
+              <h3>Betalen</h3>
+              <div className="s-seg">
+                <button aria-selected={pay === "online"} onClick={() => setPay("online")}>Online betalen</button>
+                <button aria-selected={pay === "cash"} onClick={() => setPay("cash")}>{mode === "levering" ? "Bij levering" : "Bij afhaling"}</button>
+              </div>
+              {pay === "online" && <p className="muted small" style={{ margin: 0 }}>Bancontact, Payconiq, kaart of Apple Pay via Mollie. Je betaalt rechtstreeks aan {r.name}.</p>}
+            </>}
+
             <div className="s-sum">
               <div className="s-row"><span>Subtotaal</span><span className="num">{eur(sub)}</span></div>
               {mode === "levering" && <div className="s-row"><span>Leverkost</span><span className="num">{fee ? eur(fee) : "gratis"}</span></div>}
               <div className="s-row s-total"><span>Totaal</span><span className="num">{eur(sub + fee)}</span></div>
               {short > 0 && <MinBar short={short} min={minOrder} sub={sub} />}
-              <p className="muted small" style={{ margin: 0 }}>Je betaalt bij {mode === "levering" ? "levering" : "afhaling"}. Je gegevens dienen alleen voor deze bestelling en worden na 30 dagen gewist.</p>
+              <p className="muted small" style={{ margin: 0 }}>{online && pay === "online" ? "Je bestelling gaat naar de zaak zodra je betaling gelukt is." : `Je betaalt bij ${mode === "levering" ? "levering" : "afhaling"}.`} Je gegevens dienen alleen voor deze bestelling en worden na 30 dagen gewist.</p>
             </div>
           </div>
         </SheetFrame>
