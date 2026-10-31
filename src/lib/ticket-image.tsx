@@ -95,8 +95,9 @@ function Delivery({ name, o, lines, qr }: { name: string; o: TicketOrder; lines:
   return (
     <Paper>
       <Bar text="BEZORGING" size={30} />
-      <Center size={26} style={{ marginTop: 6 }}>{`${name} · #${o.day_number}`}</Center>
-      <Center size={34} weight={700}>{o.requested_time ?? "Zo snel mogelijk"}</Center>
+      <Center size={26} style={{ marginTop: 6 }}>{name}</Center>
+      <Center size={104} weight={700} style={{ lineHeight: 1.05, margin: "4px 0" }}>{`#${o.day_number}`}</Center>
+      <Center size={34} weight={700}>{`LEVERING · ${o.requested_time ?? "Zo snel mogelijk"}`}</Center>
       {o.late && <Late />}
       <Rule />
       <Col style={{ fontSize: 34, fontWeight: 700, lineHeight: 1.25 }}>
