@@ -35,7 +35,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   await adminDb().from("printers").update({ last_seen_at: new Date().toISOString() }).eq("id", p.id);
   const job = await nextJob(p.id);
   return NextResponse.json(
-    job ? { jobReady: true, mediaTypes: ["image/png", "text/plain"], deleteMethod: "DELETE" } : { jobReady: false },
+    job ? { jobReady: true, mediaTypes: ["image/png"], deleteMethod: "DELETE" } : { jobReady: false },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
@@ -47,7 +47,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   const job = await nextJob(p.id);
   if (!job) return new NextResponse("No job", { status: 404 });
   // The printer asks for the media type it picked from our list; graphic receipts unless it wants text.
-  const asText = (new URL(req.url).searchParams.get("type") ?? "image/png").startsWith("text/");
+  const asked = new URL(req.url).searchParams.get("type") ?? "";
+  console.log(`cloudprnt GET type=${asked || "-"} ua=${req.headers.get("user-agent") ?? "-"}`);
+  // Graphic receipts only. Some Star firmware picks text/plain when it is offered, so we no longer offer it.
+  const asText = asked.startsWith("text/");
   const IMG = { "Content-Type": "image/png", "X-Star-Cut": "full; feed=true", "X-Star-ImageDitherPattern": "none", "Cache-Control": "no-store" };
 
   if (!job.order_id) {
