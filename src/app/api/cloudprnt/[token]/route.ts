@@ -25,7 +25,7 @@ async function nextJob(printerId: string) {
   const { data } = await adminDb().from("print_jobs")
     .select("id, order_id, kind, attempts, created_at")
     .eq("printer_id", printerId).in("status", ["wachtend", "opgehaald"])
-    .order("created_at", { ascending: true }).order("kind", { ascending: false }).limit(1).maybeSingle(); // keukenbon vóór bezorgbon
+    .order("created_at", { ascending: true }).order("kind", { ascending: true }).limit(1).maybeSingle(); // enum-volgorde: keuken, bezorging, bar → keukenbon eerst
   return data;
 }
 
