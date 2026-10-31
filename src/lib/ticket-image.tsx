@@ -5,6 +5,7 @@ import path from "path";
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
 import QRCode from "qrcode";
+import { deflateSync } from "zlib";
 import type { TicketLine, TicketOrder } from "./ticket";
 
 const W = 576;
@@ -143,8 +144,33 @@ function Test({ stamp }: { stamp: string }) {
 async function render(el: React.ReactElement) {
   const svg = await satori(el, { width: W, fonts: await loadFonts() });
   // No anti-aliasing: a thermal printer only knows black and white.
-  const png = new Resvg(svg, { background: "#fff", shapeRendering: 0, textRendering: 0, imageRendering: 1, fitTo: { mode: "width", value: W } }).render().asPng();
-  return png;
+  const img = new Resvg(svg, { background: "#fff", shapeRendering: 0, textRendering: 0, imageRendering: 1, fitTo: { mode: "width", value: W } }).render();
+  return mono(img.pixels, img.width, img.height);
+}
+
+/** 1-bit black/white PNG. Star printers have little memory: a 1-bit image is ~30x smaller to decode than RGBA. */
+const CRC = (() => { const t = new Int32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
+function crc32(b: Buffer) { let c = -1; for (const x of b) c = CRC[(c ^ x) & 0xff] ^ (c >>> 8); return (c ^ -1) >>> 0; }
+function chunk(type: string, data: Buffer) {
+  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+  const td = Buffer.concat([Buffer.from(type, "ascii"), data]);
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(td));
+  return Buffer.concat([len, td, crc]);
+}
+function mono(rgba: Buffer, w: number, h: number) {
+  const stride = Math.ceil(w / 8);
+  const raw = Buffer.alloc((stride + 1) * h); // filter byte 0 per row
+  for (let y = 0; y < h; y++) {
+    const row = y * (stride + 1);
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const lum = 0.299 * rgba[i] + 0.587 * rgba[i + 1] + 0.114 * rgba[i + 2];
+      if (lum >= 128) raw[row + 1 + (x >> 3)] |= 0x80 >> (x & 7); // 1 = white in grayscale
+    }
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 1; ihdr[9] = 0; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(raw, { level: 9 })), chunk("IEND", Buffer.alloc(0))]);
 }
 
 export async function routeQr(o: TicketOrder) {

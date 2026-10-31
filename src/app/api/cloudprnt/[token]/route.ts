@@ -88,6 +88,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ token
   const p = await printerFor((await params).token);
   if (!p) return new NextResponse("Not found", { status: 404 });
   const code = decodeURIComponent(new URL(req.url).searchParams.get("code") ?? "200");
+  console.log(`cloudprnt DELETE code=${code}`);
   const { data: job } = await db.from("print_jobs").select("id, order_id, attempts")
     .eq("printer_id", p.id).eq("status", "opgehaald").order("fetched_at", { ascending: true }).limit(1).maybeSingle();
   if (!job) return new NextResponse("OK");
