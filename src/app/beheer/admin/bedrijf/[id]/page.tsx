@@ -1,4 +1,5 @@
 import { setupText, type Setup } from "@/lib/setup";
+import { billingEnabled, charge } from "@/lib/billing";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import AdminNav from "@/components/AdminNav";
@@ -72,6 +73,15 @@ async function addMember(f: FormData) {
   redirect(`/beheer/admin/bedrijf/${s(f, "id")}?${uid ? "mail=1" : "fout=account"}`);
 }
 
+async function chargeNow(f: FormData) {
+  "use server";
+  await adminOnly();
+  const id = String(f.get("id") ?? ""), cid = String(f.get("cid") ?? "");
+  let ok = false;
+  try { ok = await charge(id); } catch (e) { console.error("charge", e); }
+  redirect(`/beheer/admin/bedrijf/${cid}?${ok ? "ok=afgeschreven" : "fout=incasso"}`);
+}
+
 export default async function Page({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; fout?: string; nieuw?: string; mail?: string }> }) {
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const db = await adminOnly();
@@ -79,14 +89,14 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   if (!co) notFound();
   const [{ data: rs }, { data: invs }, { data: inst }, { data: prices }] = await Promise.all([
     db.from("restaurants").select("id, name, slug, type, restaurant_members(user_id, role)").eq("company_id", id).order("name"),
-    db.from("invoices").select("id, number, issued_on, due_on, status, total_cents, peppol_status, period").eq("company_id", id).order("seq", { ascending: false }),
+    db.from("invoices").select("id, number, issued_on, due_on, status, total_cents, peppol_status, period, mollie_status").eq("company_id", id).order("seq", { ascending: false }),
     db.from("installations").select("*").eq("company_id", id).order("created_at"),
     db.from("prices").select("key, label, cents").order("cents"),
   ]);
   const uids = [...new Set((rs ?? []).flatMap((r) => (r.restaurant_members as { user_id: string }[]).map((m) => m.user_id)))];
   const users = await Promise.all(uids.map(async (u) => (await db.auth.admin.getUserById(u)).data.user));
   const mail = (u: string) => users.find((x) => x?.id === u);
-  const errors: Record<string, string> = { btw: "Het btw-nummer klopt niet.", lijnen: "Vul minstens één lijn in met omschrijving en prijs.", factuur: "Factuur maken is niet gelukt.", account: "Account aanmaken is niet gelukt.", bestaat: "Er bestaat al een bedrijf met dit btw-nummer. Dit is dat bedrijf." };
+  const errors: Record<string, string> = { incasso: "Afschrijven is niet gelukt: geen geldige domiciliëring, of er loopt al een betaling.", btw: "Het btw-nummer klopt niet.", lijnen: "Vul minstens één lijn in met omschrijving en prijs.", factuur: "Factuur maken is niet gelukt.", account: "Account aanmaken is niet gelukt.", bestaat: "Er bestaat al een bedrijf met dit btw-nummer. Dit is dat bedrijf." };
   const nieuw: Record<string, string> = { uitgenodigd: "Klant aangemaakt. De uitbater kreeg een e-mail om een wachtwoord te kiezen.", gekoppeld: "Klant aangemaakt en gekoppeld aan een bestaand account.", geenaccount: "Klant aangemaakt, maar het account kon niet worden aangemaakt. Nodig de uitbater hieronder opnieuw uit." };
   return (
     <>
@@ -97,7 +107,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
         <span className="pill">{PLAN[co.plan]}</span>
       </div>
       {sp.nieuw && <div className="okmsg">{nieuw[sp.nieuw]}</div>}
-      {sp.ok && <div className="okmsg">Opgeslagen.</div>}
+      {sp.ok && <div className="okmsg">{sp.ok === "afgeschreven" ? "Afschrijving gestart bij Mollie." : "Opgeslagen."}</div>}
       {sp.mail && <div className="okmsg">E-mail verstuurd.</div>}
       {sp.fout && <div className="alert">{errors[sp.fout] ?? "Er ging iets mis."}</div>}
 
@@ -136,12 +146,14 @@ export default async function Page({ params, searchParams }: { params: Promise<{
 
           <section className="panel">
             <h2 className="h2">Facturen</h2>
+            {billingEnabled() && <p className="small" style={{ margin: "0 0 8px" }}>{co.mandate_status === "valid" ? <><span className="pill ok">Domiciliëring</span> {co.mandate_label}</> : co.mandate_status ? <><span className="pill wait">Mandaat: {co.mandate_status}</span></> : <span className="muted">Nog geen domiciliëring. De klant activeert die door een factuur online te betalen in zijn panel (Facturen).</span>}</p>}
             {!invs?.length ? <p className="muted">Nog geen facturen.</p> : (
               <div className="tblwrap"><table className="tbl">
-                <thead><tr><th>Nummer</th><th>Datum</th><th>Bedrag</th><th>Status</th><th>Peppol</th></tr></thead>
+                <thead><tr><th>Nummer</th><th>Datum</th><th>Bedrag</th><th>Status</th><th>Peppol</th><th></th></tr></thead>
                 <tbody>{invs.map((i) => { const st = shownStatus(i); return (
                   <tr key={i.id}><td><Link href={`/beheer/factuur/${i.id}`}>{i.number}</Link></td><td>{shortDate(i.issued_on)}</td><td>{eur(i.total_cents)}</td>
-                    <td><span className={`pill ${STATUS[st]?.[1]}`}>{STATUS[st]?.[0]}</span></td><td className="small muted">{PEPPOL[i.peppol_status] ?? i.peppol_status}</td></tr>
+                    <td><span className={`pill ${STATUS[st]?.[1]}`}>{STATUS[st]?.[0]}</span></td><td className="small muted">{PEPPOL[i.peppol_status] ?? i.peppol_status}</td>
+                    <td>{i.mollie_status && <small className="muted">Mollie: {i.mollie_status} </small>}{i.status === "open" && co.mandate_status === "valid" && !["pending", "open", "authorized", "paid"].includes(i.mollie_status ?? "") && <form action={chargeNow} style={{ display: "inline" }}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="cid" value={id} /><button className="btn">Nu afschrijven</button></form>}</td></tr>
                 ); })}</tbody>
               </table></div>
             )}

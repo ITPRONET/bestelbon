@@ -6,6 +6,8 @@ import { userDb } from "@/lib/supabase-server";
 import { eur } from "@/lib/money";
 import { normVat } from "@/lib/vat";
 import { seller, shownStatus, shortDate, STATUS } from "@/lib/invoice";
+import { billingEnabled, CHARGE_AFTER_DAYS, payOnline } from "@/lib/billing";
+import { siteUrl } from "@/lib/mollie";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Facturen & gegevens" };
@@ -27,20 +29,33 @@ async function saveCompany(f: FormData) {
   redirect(`/beheer/facturen?zaak=${zaak}&${error ? "fout=opslaan" : "ok=1"}`);
 }
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ zaak?: string; ok?: string; fout?: string }> }) {
+async function payInvoice(f: FormData) {
+  "use server";
+  const db = await userDb();
+  const zaak = s(f, "zaak");
+  const { data: inv } = await db.from("invoices").select("id, status").eq("id", s(f, "id")).maybeSingle(); // RLS: alleen eigen facturen
+  if (!inv || inv.status !== "open") redirect(`/beheer/facturen?zaak=${zaak}`);
+  let url: string | null = null;
+  try { url = await payOnline(inv.id, `${siteUrl()}/beheer/facturen?zaak=${zaak}&betaling=terug`); } catch (e) { console.error("payOnline", e); }
+  redirect(url ?? `/beheer/facturen?zaak=${zaak}&fout=betalen`);
+}
+
+export default async function Page({ searchParams }: { searchParams: Promise<{ zaak?: string; ok?: string; fout?: string; betaling?: string }> }) {
   const sp = await searchParams;
   const { db, restaurants, current } = await panel(sp.zaak);
   if (!current) return null;
   const [{ data: co }, { data: invoices }, { data: prices }, sel] = await Promise.all([
-    db.from("companies").select("id, legal_name, vat_number, street, postcode, city, contact_name, email, phone, plan, billing, status, started_on").eq("id", current.company_id).single(),
-    db.from("invoices").select("id, number, issued_on, due_on, status, total_cents, ogm").eq("company_id", current.company_id).order("seq", { ascending: false }),
+    db.from("companies").select("id, legal_name, vat_number, street, postcode, city, contact_name, email, phone, plan, billing, status, started_on, mandate_status, mandate_label").eq("id", current.company_id).single(),
+    db.from("invoices").select("id, number, issued_on, due_on, status, total_cents, ogm, mollie_status").eq("company_id", current.company_id).order("seq", { ascending: false }),
     db.from("prices").select("key, cents"),
     seller(),
   ]);
   if (!co) return null;
   const monthly = prices?.find((p) => p.key === co.plan)?.cents ?? 0;
   const unpaid = (invoices ?? []).filter((i) => ["open", "vervallen"].includes(shownStatus(i)));
-  const errors: Record<string, string> = { btw: "Dit btw-nummer klopt niet. Controleer het nummer.", mail: "Vul een geldig e-mailadres in.", opslaan: "Opslaan is niet gelukt. Probeer opnieuw." };
+  const mandate = co.mandate_status === "valid";
+  const online = billingEnabled();
+  const errors: Record<string, string> = { betalen: "Online betalen lukt nu niet. Probeer later opnieuw of betaal via overschrijving.", btw: "Dit btw-nummer klopt niet. Controleer het nummer.", mail: "Vul een geldig e-mailadres in.", opslaan: "Opslaan is niet gelukt. Probeer opnieuw." };
   return (
     <>
       <PanelNav active="facturen" restaurants={restaurants} current={current} />
@@ -50,8 +65,17 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
       {unpaid.length > 0 && (
         <div className="alert">
           {unpaid.length === 1 ? "1 factuur staat open" : `${unpaid.length} facturen staan open`}: {eur(unpaid.reduce((t, i) => t + i.total_cents, 0))}.
-          Betaal op {sel.iban || "ons rekeningnummer"} met de gestructureerde mededeling op de factuur.
+          {mandate ? " We schrijven ze automatisch af via je domiciliëring." : <> Betaal online hieronder, of op {sel.iban || "ons rekeningnummer"} met de gestructureerde mededeling op de factuur.</>}
         </div>
+      )}
+      {sp.betaling && <div className="okmsg">Bedankt. Zodra Mollie je betaling bevestigt, staat de factuur op betaald{mandate ? "" : " en is je domiciliëring actief"}. Dat duurt meestal enkele seconden.</div>}
+      {online && (
+        <section className="panel" style={{ display: "grid", gap: 6 }}>
+          <h2 className="h2">Betaling</h2>
+          {mandate
+            ? <p style={{ margin: 0 }}><span className="pill ok">Actief</span> {co.mandate_label ?? "Domiciliëring"}. Je {co.billing === "jaar" ? "jaarfactuur" : "maandfactuur"} wordt automatisch afgeschreven, {CHARGE_AFTER_DAYS} dagen na de factuurdatum. De factuur geldt als vooraankondiging.</p>
+            : <p style={{ margin: 0 }}>Betaal je openstaande factuur online met Bancontact, kaart of je bankapp. Daarmee activeer je ook de domiciliëring: volgende {co.billing === "jaar" ? "jaarfacturen" : "maandfacturen"} worden dan automatisch afgeschreven, {CHARGE_AFTER_DAYS} dagen na de factuurdatum.</p>}
+        </section>
       )}
       <div className="kpis">
         <div className="kpi"><span>Pakket</span><b className="kt">{co.plan === "pro" ? "Pro" : "Standaard"}</b><small>{co.billing === "jaar" ? `${eur(Math.round(monthly * 12 * 0.9))} per jaar excl. btw (10% korting)` : `${eur(monthly)} per maand excl. btw`}</small></div>
@@ -64,7 +88,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
           <h2 className="h2">Facturen</h2>
           {!invoices?.length ? <p className="muted" style={{ margin: 0 }}>Nog geen facturen.</p> : (
             <table className="tbl">
-              <thead><tr><th>Nummer</th><th>Datum</th><th>Bedrag</th><th>Status</th></tr></thead>
+              <thead><tr><th>Nummer</th><th>Datum</th><th>Bedrag</th><th>Status</th>{online && <th></th>}</tr></thead>
               <tbody>{invoices.map((i) => {
                 const st = shownStatus(i);
                 return (
@@ -72,7 +96,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
                     <td><Link href={`/beheer/factuur/${i.id}`}>{i.number}</Link></td>
                     <td>{shortDate(i.issued_on)}</td>
                     <td>{eur(i.total_cents)}</td>
-                    <td><span className={`pill ${STATUS[st]?.[1] ?? ""}`}>{STATUS[st]?.[0] ?? st}</span></td>
+                    <td><span className={`pill ${STATUS[st]?.[1] ?? ""}`}>{STATUS[st]?.[0] ?? st}</span>{i.status === "open" && ["pending", "open", "authorized"].includes(i.mollie_status ?? "") && <small className="muted"> · betaling loopt</small>}</td>
+                    {online && <td>{i.status === "open" && !["pending", "authorized"].includes(i.mollie_status ?? "") && !(mandate && i.mollie_status === "open") && (
+                      <form action={payInvoice}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="zaak" value={current.slug} /><button className="btn btn-primary">Online betalen</button></form>
+                    )}</td>}
                   </tr>
                 );
               })}</tbody>
