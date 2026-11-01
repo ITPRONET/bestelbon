@@ -97,10 +97,15 @@ export function PicSelf() {
 export function PicVisit() {
   return (
     <svg viewBox="0 0 180 90" aria-hidden="true">
-      <g transform="translate(12 8)"><path d="M28 52V36l12-10h34l16 14h16a6 6 0 0 1 6 6v6" {...S} />
-      <path d="M28 52h96" {...S} />
-      <circle cx="50" cy="56" r="8" {...S} /><circle cx="104" cy="56" r="8" {...S} />
-      <path d="M48 28v12h24V28" {...S} strokeWidth={1.6} /></g>
+      {/* bestelwagen, zijaanzicht */}
+      <path d="M14 70V22a6 6 0 0 1 6-6h96a6 6 0 0 1 5 2.6L136 40l20 4a8 8 0 0 1 6.4 7.8V70z" {...S} />
+      <path d="M116 22h3.5l13 19H116z" {...S} strokeWidth={1.6} />
+      <path d="M110 18v52" {...S} strokeWidth={1.6} />
+      <path d="M118 50h6" {...S} strokeWidth={1.6} />
+      <path d="M156 52h5" {...S} strokeWidth={2.4} />
+      <text x="62" y="47" textAnchor="middle" fontSize="13" fontWeight="800" fill="currentColor" fontFamily="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" letterSpacing="-0.2">bestelbon.eu</text>
+      <circle cx="42" cy="70" r="10" fill="#fff" {...S} /><circle cx="42" cy="70" r="3.5" {...S} strokeWidth={1.6} />
+      <circle cx="138" cy="70" r="10" fill="#fff" {...S} /><circle cx="138" cy="70" r="3.5" {...S} strokeWidth={1.6} />
     </svg>
   );
 }
