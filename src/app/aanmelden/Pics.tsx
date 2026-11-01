@@ -104,8 +104,8 @@ export function PicVisit() {
       <path d="M118 50h6" {...S} strokeWidth={1.6} />
       <path d="M156 52h5" {...S} strokeWidth={2.4} />
       <text x="62" y="47" textAnchor="middle" fontSize="13" fontWeight="800" fill="currentColor" fontFamily="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" letterSpacing="-0.2">bestelbon.eu</text>
-      <circle cx="42" cy="70" r="10" fill="#fff" {...S} /><circle cx="42" cy="70" r="3.5" {...S} strokeWidth={1.6} />
-      <circle cx="138" cy="70" r="10" fill="#fff" {...S} /><circle cx="138" cy="70" r="3.5" {...S} strokeWidth={1.6} />
+      <circle cx="42" cy="70" r="10" {...S} fill="#fff" /><circle cx="42" cy="70" r="3.5" {...S} strokeWidth={1.6} />
+      <circle cx="138" cy="70" r="10" {...S} fill="#fff" /><circle cx="138" cy="70" r="3.5" {...S} strokeWidth={1.6} />
     </svg>
   );
 }
