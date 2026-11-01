@@ -8,6 +8,6 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) return new NextResponse("Unauthorized", { status: 401 });
-  if (!billingEnabled()) return NextResponse.json({ charged: 0, note: "MOLLIE_API_KEY ontbreekt" });
+  if (!billingEnabled()) return NextResponse.json({ charged: 0, note: "MOLLIE_API_KEY_2 ontbreekt" });
   return NextResponse.json({ charged: await chargeDue() });
 }

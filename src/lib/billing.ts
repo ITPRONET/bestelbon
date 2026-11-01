@@ -1,11 +1,11 @@
-// Subscription billing for BestelBon itself, through ITPRONET's own Mollie account (MOLLIE_API_KEY).
+// Subscription billing for BestelBon itself, through ITPRONET's own Mollie account (MOLLIE_API_KEY_2).
 // Our invoices stay leading: each invoice becomes one Mollie payment. The first payment is made online
 // (Bancontact, card, ...) and creates a mandate; later invoices are collected automatically with it.
 import { adminDb } from "./supabase";
 import { siteUrl } from "./mollie";
 
 const API = "https://api.mollie.com/v2";
-const key = () => (process.env.MOLLIE_API_KEY ?? "").trim();
+const key = () => (process.env.MOLLIE_API_KEY_2 ?? "").trim();
 export const billingEnabled = () => /^(live|test)_/.test(key());
 /** Days between invoice date and automatic collection (SEPA pre-notification via the invoice). */
 export const CHARGE_AFTER_DAYS = 2;
