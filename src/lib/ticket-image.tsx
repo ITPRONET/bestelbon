@@ -142,11 +142,22 @@ function Test({ stamp }: { stamp: string }) {
 }
 
 /* ---------- rendering ---------- */
-async function render(el: React.ReactElement) {
+/** 1-bit bitmap, rows packed MSB first, 1 = black. */
+type Bits = { w: number; h: number; stride: number; data: Buffer };
+async function bitmap(el: React.ReactElement): Promise<Bits> {
   const svg = await satori(el, { width: W, fonts: await loadFonts() });
   // No anti-aliasing: a thermal printer only knows black and white.
   const img = new Resvg(svg, { background: "#fff", shapeRendering: 0, textRendering: 0, imageRendering: 1, fitTo: { mode: "width", value: W } }).render();
-  return mono(img.pixels, img.width, img.height);
+  const w = img.width, h = img.height, stride = Math.ceil(w / 8), px = img.pixels;
+  const data = Buffer.alloc(stride * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4;
+    if (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2] < 128) data[y * stride + (x >> 3)] |= 0x80 >> (x & 7);
+  }
+  return { w, h, stride, data };
+}
+async function render(el: React.ReactElement) {
+  return mono(await bitmap(el));
 }
 
 /** 1-bit black/white PNG. Star printers have little memory: a 1-bit image is ~30x smaller to decode than RGBA. */
@@ -158,17 +169,9 @@ function chunk(type: string, data: Buffer) {
   const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(td));
   return Buffer.concat([len, td, crc]);
 }
-function mono(rgba: Buffer, w: number, h: number) {
-  const stride = Math.ceil(w / 8);
-  const raw = Buffer.alloc((stride + 1) * h); // filter byte 0 per row
-  for (let y = 0; y < h; y++) {
-    const row = y * (stride + 1);
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      const lum = 0.299 * rgba[i] + 0.587 * rgba[i + 1] + 0.114 * rgba[i + 2];
-      if (lum >= 128) raw[row + 1 + (x >> 3)] |= 0x80 >> (x & 7); // 1 = white in grayscale
-    }
-  }
+function mono({ w, h, stride, data }: Bits) {
+  const raw = Buffer.alloc((stride + 1) * h); // filter byte 0 per row; PNG grayscale: 1 = white
+  for (let y = 0; y < h; y++) for (let b = 0; b < stride; b++) raw[y * (stride + 1) + 1 + b] = ~data[y * stride + b] & 0xff;
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 1; ihdr[9] = 0; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(raw, { level: 9 })), chunk("IEND", Buffer.alloc(0))]);
@@ -185,6 +188,23 @@ export async function ticketPng(kind: "keuken" | "bezorging", name: string, o: T
   return kind === "bezorging"
     ? render(<Delivery name={name} o={o} lines={lines} qr={await routeQr(o)} />)
     : render(<Kitchen name={name} o={o} lines={lines} />);
+}
+
+/** StarPRNT: several tickets in ONE print job, each followed by a cut (no pause between tickets).
+ *  ESC @ init · ESC GS S raster image (m=1, x bytes, y lines, n=0) · ESC d 2 feed + full cut. */
+export async function ticketsStarPrnt(tickets: { kind: "keuken" | "bezorging"; name: string; o: TicketOrder; lines: TicketLine[] }[]) {
+  const parts: Buffer[] = [Buffer.from([0x1b, 0x40])];
+  for (const t of tickets) {
+    const el = t.kind === "bezorging" ? <Delivery name={t.name} o={t.o} lines={t.lines} qr={await routeQr(t.o)} /> : <Kitchen name={t.name} o={t.o} lines={t.lines} />;
+    const b = await bitmap(el);
+    for (let y0 = 0; y0 < b.h; y0 += 256) { // in blokken, zodat de printerbuffer klein blijft
+      const n = Math.min(256, b.h - y0);
+      parts.push(Buffer.from([0x1b, 0x1d, 0x53, 1, b.stride & 0xff, b.stride >> 8, n & 0xff, n >> 8, 0]));
+      parts.push(b.data.subarray(y0 * b.stride, (y0 + n) * b.stride));
+    }
+    parts.push(Buffer.from([0x1b, 0x64, 0x02]));
+  }
+  return Buffer.concat(parts);
 }
 
 export function testPng() {
