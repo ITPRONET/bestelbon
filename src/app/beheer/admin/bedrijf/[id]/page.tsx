@@ -1,3 +1,4 @@
+import { setupText, type Setup } from "@/lib/setup";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import AdminNav from "@/components/AdminNav";
@@ -170,7 +171,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
             <form key={i.id} action={saveInstall} className="panel" style={{ display: "grid", gap: 10 }}>
               <input type="hidden" name="id" value={id} /><input type="hidden" name="iid" value={i.id} />
               <h2 className="h2">Installatie <span className={`pill ${INST_STATUS[i.status]?.[1]}`}>{INST_STATUS[i.status]?.[0]}</span></h2>
-              <div className="small">{i.printers_cable}× printer met kabel · {i.printers_wifi}× printer met wifi</div>
+              <div className="small">{i.printer_setup ? setupText(i.printer_setup as Setup) : `${i.printers_cable}× printer met kabel`}{i.powerline_adapters ? ` · ${i.powerline_adapters}× powerline-adapter` : ""}</div>
               <div className="fgrid">
                 <label className="field">Status<select name="status" defaultValue={i.status}>{Object.entries(INST_STATUS).map(([k, [l]]) => <option key={k} value={k}>{l}</option>)}</select></label>
                 <label className="field">Gepland op<input type="date" name="planned_on" defaultValue={i.planned_on ?? ""} /></label>

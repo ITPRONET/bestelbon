@@ -17,11 +17,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
       <main className="wrap" style={{ paddingBlock: "24px 60px", display: "grid", gap: 16, maxWidth: 980 }}>
         <div>
           <h1 className="ph">Meld je zaak aan</h1>
-          <p className="muted" style={{ margin: "6px 0 0" }}>Vul je gegevens in. We bellen je binnen één werkdag om de installatie te plannen. Je betaalt pas na de installatie.</p>
+          <p className="muted" style={{ margin: "6px 0 0" }}>Stel je pakket samen en vul je gegevens in. We bellen je binnen één werkdag. Je betaalt pas wanneer je pakket klaarstaat.</p>
         </div>
         <Signup
           initialPlan={sp.pakket === "pro" ? "pro" : "standaard"}
-          prices={{ standaard: eur(p.standaard ?? 0), pro: eur(p.pro ?? 0), kabel: eur(p.printer_kabel ?? 0), wifi: eur(p.printer_wifi ?? 0), installatie: eur(p.installatie ?? 0), jaarStandaard: eur(Math.round((p.standaard ?? 0) * 12 * 0.9)), jaarPro: eur(Math.round((p.pro ?? 0) * 12 * 0.9)), admin: eur(p.administratie ?? 9900), adminFree: adminFeeWaived() ? ADMIN_FREE_LABEL : null }}
+          prices={{ standaard: eur(p.standaard ?? 0), pro: eur(p.pro ?? 0), installatie: eur(p.installatie ?? 0), c: { printer: p.printer_kabel ?? 0, powerline: p.powerline ?? 0, installatie: p.installatie ?? 0, admin: p.administratie ?? 9900 }, jaarStandaard: eur(Math.round((p.standaard ?? 0) * 12 * 0.9)), jaarPro: eur(Math.round((p.pro ?? 0) * 12 * 0.9)), admin: eur(p.administratie ?? 9900), adminFree: adminFeeWaived() ? ADMIN_FREE_LABEL : null }}
         />
       </main>
     </>

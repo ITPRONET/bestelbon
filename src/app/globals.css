@@ -479,3 +479,26 @@ button:disabled,.btn:disabled,select:disabled{cursor:not-allowed}
 @media(prefers-reduced-motion:reduce){.g-blob,.g-floor,.g-ticket,.g-ticket::after,.g-ticket-shadow,.g-orb::before,.g-chip,.g-dot,.g-card,.g-why-card{animation:none!important}.g-card,.g-why-card,.g-ticket-wrap,.g-orb,.g-chip{transition:none!important}}
 @media(max-width:859px){.g-scene.compact{display:none}.g-ticket-wrap{width:176px;margin:-140px 0 0 -88px}.g-ticket{font-size:11px}.g-tk-no{font-size:38px}.g-chip{--z:120px}.g-chip.c1{top:auto;bottom:12%;right:13%}.g-chip.c2{bottom:auto;top:4%;left:13%}.g-orb.o1{left:3%;top:34%}.g-orb.o3{top:76%}}
 @media(min-width:860px){.g-list{grid-template-columns:1fr 1fr}}
+
+/* ===== aanmelden: printer survey ===== */
+.q{border:0;margin:0;padding:0;display:grid;gap:8px;min-width:0}
+.q legend{font-weight:700;font-size:15px;margin-bottom:8px;padding:0}
+.choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.choices.three{grid-template-columns:repeat(auto-fit,minmax(128px,1fr))}
+.choice{display:grid;gap:4px;align-content:start;text-align:left;background:var(--bg);border:2px solid var(--line);border-radius:14px;padding:12px;color:var(--text);font:inherit;cursor:pointer;transition:border-color .15s,background .15s,transform .15s}
+.choice:hover{border-color:var(--muted)}
+.choice[aria-pressed="true"]{border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+.choice-pic{display:block;background:#fff;border-radius:10px;padding:6px;color:var(--ink);margin-bottom:4px}
+.choice[aria-pressed="true"] .choice-pic{color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,#fff)}
+.choice-pic svg{display:block;width:100%;height:auto;max-height:84px}
+.choice b{font-size:16px}
+.choice small{color:var(--muted);font-size:13px;line-height:1.35}
+.pkg-list{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:14px}
+.pkg-list li{display:flex;justify-content:space-between;gap:10px}
+.pkg-list li .num{white-space:nowrap;text-align:right}
+.pkg-total{border-top:1px solid var(--line);padding-top:8px;margin-top:2px;font-weight:800;font-size:16px}
+@media(max-width:560px){
+  .choices,.choices.three{grid-template-columns:1fr}
+  .choice{grid-template-columns:112px 1fr;column-gap:12px;align-items:center}
+  .choice-pic{grid-row:1 / span 2;margin:0}
+}

@@ -22,9 +22,10 @@ export default async function Page() {
 
       <h2>4. Printers en installatie</h2>
       <ul>
-        <li>Printers worden verkocht. Ze blijven eigendom van {name} tot de factuur volledig betaald is.</li>
+        <li>Printers en powerline-adapters worden verkocht. Ze blijven eigendom van {name} tot de factuur volledig betaald is.</li>
         <li>Op printers geldt de garantie van de fabrikant. Schade door vallen, vocht, vet, overspanning of verkeerd gebruik valt daar niet onder.</li>
-        <li>Bij de installatie sluiten we de printer aan op het netwerk van de zaak en zetten we het menu klaar. De zaak zorgt voor stroom, een werkende internetverbinding en, voor de kabelversie, een vrije netwerkpoort.</li>
+        <li>Standaard krijgt de zaak een pakket waarin de printer al gekoppeld is aan haar beheerpaneel en eventuele powerline-adapters al aan elkaar gekoppeld zijn; de zaak sluit alles zelf aan volgens de meegeleverde uitleg en zet zelf haar menu in het paneel. Op aanvraag installeert {name} alles ter plaatse en zet het menu klaar, tegen de prijs van de installatie.</li>
+        <li>De zaak zorgt voor stroom, een werkende internetverbinding, een vrije netwerkpoort op haar router en, bij powerline, vrije stopcontacten in de muur bij de router en bij elke printer. De keuze tussen kabel en powerline maakt de zaak bij de aanmelding; blijkt die niet te werken in haar elektrische installatie, dan zoeken we samen een oplossing (bv. een kabel of een wifi-brug), tegen de dan geldende prijs.</li>
       </ul>
 
       <h2>5. Prijzen en betaling</h2>

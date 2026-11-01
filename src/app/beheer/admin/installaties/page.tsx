@@ -1,3 +1,4 @@
+import { setupText, type Setup } from "@/lib/setup";
 import Link from "next/link";
 import AdminNav from "@/components/AdminNav";
 import { adminOnly, INST_STATUS } from "@/lib/admin";
@@ -8,7 +9,7 @@ export const metadata = { title: "Installaties" };
 
 export default async function Page() {
   const db = await adminOnly();
-  const { data } = await db.from("installations").select("id, status, planned_on, done_on, printers_cable, printers_wifi, notes, companies(id, legal_name, contact_name, phone, street, postcode, city), restaurants(name)").order("planned_on", { ascending: true, nullsFirst: true });
+  const { data } = await db.from("installations").select("id, status, planned_on, done_on, printers_cable, printers_wifi, powerline_adapters, install_mode, printer_setup, notes, companies(id, legal_name, contact_name, phone, street, postcode, city), restaurants(name)").order("planned_on", { ascending: true, nullsFirst: true });
   const groups = ["te_plannen", "gepland", "geinstalleerd"] as const;
   return (
     <>
@@ -30,7 +31,7 @@ export default async function Page() {
                     <Link href={`/beheer/admin/bedrijf/${co.id}`}><b>{r?.name ?? co.legal_name}</b></Link>
                     <span className="small">{i.planned_on ? shortDate(i.planned_on) : "geen datum"}{i.done_on ? ` · klaar ${shortDate(i.done_on)}` : ""}</span>
                   </div>
-                  <div className="small muted">{i.printers_cable}× kabel · {i.printers_wifi}× wifi · {co.contact_name ?? ""} {co.phone ?? ""}</div>
+                  <div className="small muted">{i.printer_setup ? setupText(i.printer_setup as Setup) : `${i.printers_cable}× kabel`}{i.powerline_adapters ? ` · ${i.powerline_adapters}× powerline` : ""} · {i.install_mode === "ter_plaatse" ? "ter plaatse" : "pakket"} · {co.contact_name ?? ""} {co.phone ?? ""}</div>
                   {addr && <a className="small" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`} target="_blank" rel="noopener">{addr}</a>}
                   {i.notes && <div className="small">{i.notes}</div>}
                 </div>

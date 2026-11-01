@@ -28,7 +28,7 @@ async function save(f: FormData) {
 async function savePrices(f: FormData) {
   "use server";
   const db = await adminOnly();
-  for (const k of ["standaard", "pro", "printer_kabel", "printer_wifi", "installatie", "administratie"]) {
+  for (const k of ["standaard", "pro", "printer_kabel", "powerline", "installatie", "administratie"]) {
     const c = toCents(f.get(k));
     if (c !== null) await db.from("prices").update({ cents: c }).eq("key", k);
   }
@@ -46,7 +46,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ o
   const sp = await searchParams;
   const db = await adminOnly();
   const [s0, { data: prices }, { data: ps }, { count: inGids }] = await Promise.all([
-    seller(), db.from("prices").select("key, label, cents").order("cents"),
+    seller(), db.from("prices").select("key, label, cents").neq("key", "printer_wifi").order("cents"),
     db.from("platform_settings").select("gids_public").eq("id", 1).maybeSingle(),
     db.from("restaurants").select("id", { count: "exact", head: true }).eq("in_gids", true),
   ]);

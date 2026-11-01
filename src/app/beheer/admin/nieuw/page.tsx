@@ -56,16 +56,19 @@ async function create(f: FormData) {
   if (uid) await db.from("restaurant_members").insert({ restaurant_id: r!.id, user_id: uid, role: "eigenaar" });
 
   const cable = Math.max(0, Math.min(5, Number(s(f, "cable")) || 0));
-  const wifi = Math.max(0, Math.min(5, Number(s(f, "wifi")) || 0));
-  await db.from("installations").insert({ company_id: co!.id, restaurant_id: r!.id, printers_cable: cable, printers_wifi: wifi, planned_on: s(f, "planned_on") || null, status: s(f, "planned_on") ? "gepland" : "te_plannen", notes: s(f, "notes", 500) || null });
+  const pl = Math.max(0, Math.min(5, Number(s(f, "pl")) || 0));
+  const adapters = Math.max(0, Math.min(10, Number(s(f, "adapters")) || (pl ? pl + 1 : 0)));
+  const installMode = s(f, "install_mode") === "ter_plaatse" ? "ter_plaatse" : "zelf";
+  const { data: sg } = s(f, "aanvraag") ? await db.from("signups").select("printer_setup").eq("id", s(f, "aanvraag")).maybeSingle() : { data: null };
+  await db.from("installations").insert({ company_id: co!.id, restaurant_id: r!.id, printers_cable: cable, printers_wifi: 0, powerline_adapters: adapters, install_mode: installMode, printer_setup: sg?.printer_setup ?? null, planned_on: s(f, "planned_on") || null, status: s(f, "planned_on") ? "gepland" : "te_plannen", notes: s(f, "notes", 500) || null });
 
   if (f.get("invoice") === "on") {
     const { data: prices } = await db.from("prices").select("key, label, cents");
     const p = (k: string) => prices!.find((x) => x.key === k)!;
     const lines = [
-      cable && { description: p("printer_kabel").label, qty: cable, unit_cents: p("printer_kabel").cents },
-      wifi && { description: p("printer_wifi").label, qty: wifi, unit_cents: p("printer_wifi").cents },
-      f.get("install") === "on" && { description: p("installatie").label, qty: 1, unit_cents: p("installatie").cents },
+      cable + pl && { description: p("printer_kabel").label, qty: cable + pl, unit_cents: p("printer_kabel").cents },
+      adapters && prices!.some((x) => x.key === "powerline") && { description: p("powerline").label, qty: adapters, unit_cents: p("powerline").cents },
+      installMode === "ter_plaatse" && { description: p("installatie").label, qty: 1, unit_cents: p("installatie").cents },
       ...(f.get("admin") === "on" && prices!.some((x) => x.key === "administratie") ? adminFeeLines(p("administratie").label, p("administratie").cents) : []),
     ].filter(Boolean);
     if (lines.length) await db.rpc("create_invoice", { p_company: co!.id, p_lines: lines, p_note: `Opstart BestelBon voor ${zaak}` });
@@ -122,12 +125,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ f
           <h2 className="h2" style={{ marginTop: 8 }}>Installatie</h2>
           <div className="fgrid">
             <label className="field">Printers met kabel<input name="cable" type="number" min={0} max={5} defaultValue={a ? a.printers_cable : 1} /></label>
-            <label className="field">Printers met wifi<input name="wifi" type="number" min={0} max={5} defaultValue={a ? a.printers_wifi : 0} /></label>
+            <label className="field">Printers via powerline<input name="pl" type="number" min={0} max={5} defaultValue={a ? (a.printers_powerline ?? 0) : 0} /></label>
+            <label className="field">Powerline-adapters<input name="adapters" type="number" min={0} max={10} defaultValue={a ? (a.powerline_adapters ?? 0) : 0} /></label>
+            <label className="field">Installatie<select name="install_mode" defaultValue={a?.install_mode ?? "zelf"}><option value="zelf">Zelf (pakket)</option><option value="ter_plaatse">Ter plaatse</option></select></label>
             <label className="field">Installatiedatum<input name="planned_on" type="date" /></label>
             <label className="field" style={{ gridColumn: "1/-1" }}>Notities<textarea name="notes" defaultValue={v("message")} rows={2} placeholder="Router achter de toog, menu op foto ontvangen…" /></label>
           </div>
-          <label className="check"><input type="checkbox" name="invoice" defaultChecked /> Meteen factuur maken voor de printers</label>
-          <label className="check"><input type="checkbox" name="install" defaultChecked /> Installatie mee factureren</label>
+          <label className="check"><input type="checkbox" name="invoice" defaultChecked /> Meteen factuur maken voor printers, adapters en installatie</label>
           <label className="check"><input type="checkbox" name="admin" defaultChecked /> Administratieve kosten (€ 99){adminFeeWaived() ? ` – gratis tot ${ADMIN_FREE_LABEL}` : ""}</label>
           <p className="muted small" style={{ margin: 0 }}>De uitbater krijgt een e-mail om een wachtwoord te kiezen. Het maandabonnement factureer je via Facturen → Maandfacturen.</p>
           <div><button className="btn btn-primary">Klant aanmaken</button></div>
