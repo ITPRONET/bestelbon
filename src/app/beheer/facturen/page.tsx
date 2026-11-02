@@ -34,8 +34,9 @@ async function payInvoice(f: FormData) {
   "use server";
   const db = await userDb();
   const zaak = s(f, "zaak");
-  const { data: inv } = await db.from("invoices").select("id, status, company_id").eq("id", s(f, "id")).maybeSingle(); // RLS: alleen eigen facturen
-  if (!inv || inv.status !== "open") redirect(`/beheer/facturen?zaak=${zaak}`);
+  const { data: inv, error: ie } = await db.from("invoices").select("id, status, company_id").eq("id", s(f, "id")).maybeSingle(); // RLS: alleen eigen facturen
+  console.log(`payInvoice id=${s(f, "id")} zaak=${zaak} mandaat=${f.get("mandaat") === "on"} found=${!!inv} status=${inv?.status ?? "-"} err=${ie?.message ?? "-"}`);
+  if (!inv || inv.status !== "open") redirect(`/beheer/facturen?zaak=${zaak}&fout=betalen`);
   const mandate = f.get("mandaat") === "on";
   if (mandate) {
     // Uitdrukkelijke toestemming voor automatische afschrijving bewaren (wie en wanneer).
@@ -44,6 +45,7 @@ async function payInvoice(f: FormData) {
   }
   let url: string | null = null;
   try { url = await payOnline(inv.id, `${siteUrl()}/beheer/facturen?zaak=${zaak}&betaling=${mandate ? "mandaat" : "terug"}`, mandate); } catch (e) { console.error("payOnline", e); }
+  console.log(`payInvoice checkout=${url ? "ok" : "geen"}`);
   redirect(url ?? `/beheer/facturen?zaak=${zaak}&fout=betalen`);
 }
 
