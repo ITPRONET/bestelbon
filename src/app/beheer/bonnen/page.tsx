@@ -21,10 +21,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
   return (
     <>
       <div className="noprint" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
-        <div><h1 className="ph" style={{ margin: 0 }}>Bonnen van {longDate(dag)}</h1><p className="muted small" style={{ margin: 0 }}>{current.name} · {rows.length} keukenbonnen · {rows.filter((o) => o.mode === "levering").length} bezorgbonnen</p></div>
+        <div><h1 className="ph" style={{ margin: 0 }}>Bonnen van {longDate(dag)}</h1><p className="muted small" style={{ margin: 0 }}>{current.name} · {rows.length} keukenbonnen · {rows.length} bezorg-/afhaalbonnen</p></div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <div className="seg2">
-            {(["alle", "keuken", "bezorging"] as const).map((s) => <Link key={s} href={`${base}&soort=${s}`} aria-current={soort === s ? "page" : undefined}>{s === "alle" ? "Alle" : s === "keuken" ? "Keuken" : "Bezorging"}</Link>)}
+            {(["alle", "keuken", "bezorging"] as const).map((s) => <Link key={s} href={`${base}&soort=${s}`} aria-current={soort === s ? "page" : undefined}>{s === "alle" ? "Alle" : s === "keuken" ? "Keuken" : "Bezorg/afhaal"}</Link>)}
           </div>
           <PrintButton />
           <a className="btn" href={`/beheer/bonnen/export?zaak=${current.slug}&van=${dag.slice(0, 8)}01&tot=${dag}`}>Export maand (CSV)</a>
@@ -37,7 +37,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
             // eslint-disable-next-line @next/next/no-img-element
             soort !== "bezorging" && <img className="bonimg" key={`k${o.id}`} src={`/beheer/bon/${o.id}?soort=keuken`} alt={`Keukenbon #${o.day_number}`} />,
             // eslint-disable-next-line @next/next/no-img-element
-            soort !== "keuken" && o.mode === "levering" && <img className="bonimg" key={`b${o.id}`} src={`/beheer/bon/${o.id}?soort=bezorging`} alt={`Bezorgbon #${o.day_number}`} />,
+            soort !== "keuken" && <img className="bonimg" key={`b${o.id}`} src={`/beheer/bon/${o.id}?soort=bezorging`} alt={`${o.mode === "levering" ? "Bezorgbon" : "Afhaalbon"} #${o.day_number}`} />,
           ];
         })}
       </div>

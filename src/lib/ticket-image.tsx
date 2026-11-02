@@ -94,16 +94,16 @@ function Kitchen({ name, o, lines }: { name: string; o: TicketOrder; lines: Tick
 function Delivery({ name, o, lines, qr }: { name: string; o: TicketOrder; lines: TicketLine[]; qr: string | null }) {
   return (
     <Paper>
-      <Bar text="BEZORGING" size={30} />
+      <Bar text={o.mode === "levering" ? "BEZORGING" : "AFHALEN"} size={30} />
       <Center size={26} style={{ marginTop: 6 }}>{name}</Center>
       <Center size={104} weight={700} style={{ lineHeight: 1.05, margin: "4px 0" }}>{`#${o.day_number}`}</Center>
-      <Center size={34} weight={700}>{`LEVERING · ${o.requested_time ?? "Zo snel mogelijk"}`}</Center>
+      <Center size={34} weight={700}>{`${o.mode === "levering" ? "LEVERING" : "AFHALEN"} · ${o.requested_time ?? "Zo snel mogelijk"}`}</Center>
       {o.late && <Late />}
       <Rule />
       <Col style={{ fontSize: 34, fontWeight: 700, lineHeight: 1.25 }}>
         <div style={{ display: "flex" }}>{o.customer_name ?? ""}</div>
-        <div style={{ display: "flex" }}>{o.address ?? ""}</div>
-        <div style={{ display: "flex" }}>{`${o.postcode ?? ""} ${o.city ?? ""}`.trim()}</div>
+        {o.address && <div style={{ display: "flex" }}>{o.address}</div>}
+        {(o.postcode || o.city) && <div style={{ display: "flex" }}>{`${o.postcode ?? ""} ${o.city ?? ""}`.trim()}</div>}
       </Col>
       <div style={{ display: "flex", fontSize: 28, marginTop: 4 }}>{`Tel: ${o.customer_phone ?? ""}`}</div>
       {o.note && <div style={{ display: "flex", fontSize: 26, marginTop: 6, lineHeight: 1.3 }}><span style={{ fontWeight: 700, paddingRight: 10 }}>Opm:</span><span style={{ flex: 1 }}>{o.note}</span></div>}

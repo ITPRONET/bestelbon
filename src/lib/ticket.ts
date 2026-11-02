@@ -41,9 +41,9 @@ export function kitchenTicket(name: string, o: TicketOrder, lines: TicketLine[])
 }
 
 export function deliveryTicket(name: string, o: TicketOrder, lines: TicketLine[]) {
-  const out = [bar("BEZORGING"), center(`${name} - #${o.day_number}`), center(o.requested_time ?? "Zo snel mogelijk")];
+  const out = [bar(o.mode === "levering" ? "BEZORGING" : "AFHALEN"), center(`${name} - #${o.day_number}`), center(`${o.mode === "levering" ? "LEVERING" : "AFHALEN"} - ${o.requested_time ?? "Zo snel mogelijk"}`)];
   if (o.late) out.push(bar("NAGEPRINT - VERTRAAGD"));
-  out.push(hr(), ascii(o.customer_name ?? ""), ...wrap(o.address ?? ""), ascii(`${o.postcode ?? ""} ${o.city ?? ""}`.trim()), ascii(`Tel: ${o.customer_phone ?? ""}`));
+  out.push(hr(), ascii(o.customer_name ?? ""), ...(o.address ? wrap(o.address) : []), ...(o.postcode || o.city ? [ascii(`${o.postcode ?? ""} ${o.city ?? ""}`.trim())] : []), ascii(`Tel: ${o.customer_phone ?? ""}`));
   if (o.note) out.push(...wrap(`Opm: ${o.note}`));
   out.push(hr());
   for (const l of lines) out.push(lr(`${l.qty}x ${l.item_name}`, money(l.qty * l.unit_cents)));
