@@ -34,15 +34,16 @@ async function customerFor(c: { id: string; legal_name: string; email: string; m
   return cu.id;
 }
 
-/** Online payment of an invoice by the customer; also sets up the mandate for the next invoices. */
-export async function payOnline(invoiceId: string, back: string) {
+/** Online payment of an invoice by the customer. With `mandate` (explicit consent) it also sets up
+ *  the mandate for the next invoices (sequenceType "first"); without it, a one-off payment. */
+export async function payOnline(invoiceId: string, back: string, mandate: boolean) {
   const inv = await invoiceRow(invoiceId);
   if (!inv || inv.status !== "open") throw new Error("Factuur niet open");
   const customerId = await customerFor(inv.companies);
   const p = await api<Payment>("/payments", {
     method: "POST",
     body: JSON.stringify({
-      amount: amount(inv.total_cents), description: `BestelBon factuur ${inv.number}`, customerId, sequenceType: "first",
+      amount: amount(inv.total_cents), description: `BestelBon factuur ${inv.number}`, customerId, sequenceType: mandate ? "first" : "oneoff",
       redirectUrl: back, webhookUrl: `${siteUrl()}/api/mollie/billing`, locale: "nl_BE", metadata: { invoice_id: inv.id },
     }),
   });

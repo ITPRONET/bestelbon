@@ -8,6 +8,7 @@ import { normVat } from "@/lib/vat";
 import { seller, shownStatus, shortDate, STATUS } from "@/lib/invoice";
 import { billingEnabled, CHARGE_AFTER_DAYS, payOnline } from "@/lib/billing";
 import { siteUrl } from "@/lib/mollie";
+import { adminDb } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Facturen & gegevens" };
@@ -33,10 +34,16 @@ async function payInvoice(f: FormData) {
   "use server";
   const db = await userDb();
   const zaak = s(f, "zaak");
-  const { data: inv } = await db.from("invoices").select("id, status").eq("id", s(f, "id")).maybeSingle(); // RLS: alleen eigen facturen
+  const { data: inv } = await db.from("invoices").select("id, status, company_id").eq("id", s(f, "id")).maybeSingle(); // RLS: alleen eigen facturen
   if (!inv || inv.status !== "open") redirect(`/beheer/facturen?zaak=${zaak}`);
+  const mandate = f.get("mandaat") === "on";
+  if (mandate) {
+    // Uitdrukkelijke toestemming voor automatische afschrijving bewaren (wie en wanneer).
+    const { data: u } = await db.auth.getUser();
+    await adminDb().from("companies").update({ mandate_consent_at: new Date().toISOString(), mandate_consent_by: u.user?.id ?? null }).eq("id", inv.company_id);
+  }
   let url: string | null = null;
-  try { url = await payOnline(inv.id, `${siteUrl()}/beheer/facturen?zaak=${zaak}&betaling=terug`); } catch (e) { console.error("payOnline", e); }
+  try { url = await payOnline(inv.id, `${siteUrl()}/beheer/facturen?zaak=${zaak}&betaling=${mandate ? "mandaat" : "terug"}`, mandate); } catch (e) { console.error("payOnline", e); }
   redirect(url ?? `/beheer/facturen?zaak=${zaak}&fout=betalen`);
 }
 
@@ -68,13 +75,21 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
           {mandate ? " We schrijven ze automatisch af via je domiciliëring." : <> Betaal online hieronder, of op {sel.iban || "ons rekeningnummer"} met de gestructureerde mededeling op de factuur.</>}
         </div>
       )}
-      {sp.betaling && <div className="okmsg">Bedankt. Zodra Mollie je betaling bevestigt, staat de factuur op betaald{mandate ? "" : " en is je domiciliëring actief"}. Dat duurt meestal enkele seconden.</div>}
+      {sp.betaling && <div className="okmsg">Bedankt. Zodra Mollie je betaling bevestigt, staat de factuur op betaald{sp.betaling === "mandaat" && !mandate ? " en is je domiciliëring actief" : ""}. Dat duurt meestal enkele seconden.</div>}
       {online && (
         <section className="panel" style={{ display: "grid", gap: 6 }}>
           <h2 className="h2">Betaling</h2>
           {mandate
-            ? <p style={{ margin: 0 }}><span className="pill ok">Actief</span> {co.mandate_label ?? "Domiciliëring"}. Je {co.billing === "jaar" ? "jaarfactuur" : "maandfactuur"} wordt automatisch afgeschreven, {CHARGE_AFTER_DAYS} dagen na de factuurdatum. De factuur geldt als vooraankondiging.</p>
-            : <p style={{ margin: 0 }}>Betaal je openstaande factuur online met Bancontact, kaart of je bankapp. Daarmee activeer je ook de domiciliëring: volgende {co.billing === "jaar" ? "jaarfacturen" : "maandfacturen"} worden dan automatisch afgeschreven, {CHARGE_AFTER_DAYS} dagen na de factuurdatum.</p>}
+            ? <><p style={{ margin: 0 }}><span className="pill ok">Actief</span> {co.mandate_label ?? "Domiciliëring"}. Je {co.billing === "jaar" ? "jaarfactuur" : "maandfactuur"} wordt automatisch afgeschreven, {CHARGE_AFTER_DAYS} dagen na de factuurdatum. De factuur geldt als vooraankondiging. Stoppen kan via info@bestelbon.eu.</p><form id="payform" action={payInvoice} hidden><input type="hidden" name="zaak" value={current.slug} /></form></>
+            : <form id="payform" action={payInvoice} style={{ display: "grid", gap: 8 }}>
+                <input type="hidden" name="zaak" value={current.slug} />
+                <p style={{ margin: 0 }}>Betaal je openstaande factuur online met Bancontact, kaart of je bankapp.</p>
+                <label className="check" style={{ alignItems: "flex-start", fontWeight: 400 }}>
+                  <input type="checkbox" name="mandaat" style={{ marginTop: 4 }} />
+                  <span>Ik machtig {sel.name || "ITPRONET"} om mijn volgende BestelBon-{co.billing === "jaar" ? "jaarfacturen" : "maandfacturen"} automatisch af te schrijven via Mollie (SEPA-domiciliëring of kaart), ten vroegste {CHARGE_AFTER_DAYS} dagen na de factuurdatum. De factuur geldt als vooraankondiging. Ik kan dit altijd stoppen via info@bestelbon.eu.</span>
+                </label>
+                <p className="muted small" style={{ margin: 0 }}>Niet aangevinkt? Dan betaal je enkel deze factuur online en betaal je volgende facturen zelf.</p>
+              </form>}
         </section>
       )}
       <div className="kpis">
@@ -98,7 +113,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
                     <td>{eur(i.total_cents)}</td>
                     <td><span className={`pill ${STATUS[st]?.[1] ?? ""}`}>{STATUS[st]?.[0] ?? st}</span>{i.status === "open" && ["pending", "open", "authorized"].includes(i.mollie_status ?? "") && <small className="muted"> · betaling loopt</small>}</td>
                     {online && <td>{i.status === "open" && !["pending", "authorized", "open"].includes(i.mollie_status ?? "") && (!mandate || i.mollie_status === "failed") && (
-                      <form action={payInvoice}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="zaak" value={current.slug} /><button className="btn btn-primary">Online betalen</button></form>
+                      <button className="btn btn-primary" form="payform" name="id" value={i.id}>Online betalen</button>
                     )}</td>}
                   </tr>
                 );
