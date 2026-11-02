@@ -5,7 +5,8 @@ import { adminOnly, PLAN } from "@/lib/admin";
 import { eur } from "@/lib/money";
 import { today } from "@/lib/panel";
 import { PEPPOL, periodLabel, shortDate, shownStatus, STATUS } from "@/lib/invoice";
-import { yearLines } from "@/lib/pricing";
+import { discountLine, yearLines } from "@/lib/pricing";
+import { unblockIfPaid } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Facturen" };
@@ -20,7 +21,7 @@ async function monthly(f: FormData) {
   const first = `${period}-01`;
   const last = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const [{ data: cos }, { data: done }, { data: prices }] = await Promise.all([
-    db.from("companies").select("id, plan, billing, started_on, ended_on").in("status", ["actief", "achterstallig"]).lte("started_on", last),
+    db.from("companies").select("id, plan, billing, started_on, ended_on, free_until, discount_pct, discount_until, discount_note").in("status", ["actief", "achterstallig"]).lte("started_on", last),
     db.from("invoices").select("company_id").eq("period", period),
     db.from("prices").select("key, cents"),
   ]);
@@ -29,12 +30,24 @@ async function monthly(f: FormData) {
   for (const c of cos ?? []) {
     if (have.has(c.id) || (c.ended_on && c.ended_on < first)) continue;
     const cents = prices?.find((p) => p.key === c.plan)?.cents ?? 0;
-    let lines = [{ description: `Abonnement BestelBon ${PLAN[c.plan]} – ${periodLabel(period)}`, qty: 1, unit_cents: cents }];
+    const discountOn = (d: string) => c.discount_pct > 0 && (!c.discount_until || d <= c.discount_until);
+    // Gratis maand(en): geen maandfactuur zolang de maand binnen "gratis t/m" valt.
+    if (c.billing !== "jaar" && c.free_until && first <= c.free_until) continue;
+    let lines: { description: string; qty: number; unit_cents: number }[] = [{ description: `Abonnement BestelBon ${PLAN[c.plan]} – ${periodLabel(period)}`, qty: 1, unit_cents: cents }];
+    if (discountOn(first)) lines.push(...discountLine(c.discount_pct, cents, c.discount_note));
     if (c.billing === "jaar") {
       // Jaarlijks vooraf: één factuur per 12 maanden, in de maand waarin het abonnement startte.
       if (c.started_on.slice(5, 7) !== period.slice(5, 7)) continue;
       const end = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)) + 10, 1)).toISOString().slice(0, 7);
       lines = yearLines(PLAN[c.plan], cents, periodLabel(period), periodLabel(end));
+      // Gratis maanden binnen dit jaar: als korting op de jaarfactuur.
+      let free = 0;
+      for (let k = 0; k < 12; k++) {
+        const m = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)) - 1 + k, 1)).toISOString().slice(0, 10);
+        if (c.free_until && m <= c.free_until) free++;
+      }
+      if (free) lines.push({ description: `${free} maand${free > 1 ? "en" : ""} gratis abonnement`, qty: -free, unit_cents: cents });
+      if (discountOn(first)) lines.push(...discountLine(c.discount_pct, cents * (12 - free), c.discount_note));
     }
     const { error } = await db.rpc("create_invoice", { p_company: c.id, p_period: period, p_lines: lines });
     if (!error) n++;
@@ -53,6 +66,10 @@ async function setStatus(f: FormData) {
     : {};
   if (s(f, "peppol") in PEPPOL) patch.peppol_status = s(f, "peppol");
   if (Object.keys(patch).length) await db.from("invoices").update(patch).eq("id", s(f, "id"));
+  if (st === "betaald") {
+    const { data: inv } = await db.from("invoices").select("company_id").eq("id", s(f, "id")).maybeSingle();
+    if (inv) await unblockIfPaid(inv.company_id);
+  }
   redirect(`/beheer/admin/facturen?${new URLSearchParams({ status: s(f, "f_status"), maand: s(f, "f_maand") })}`);
 }
 

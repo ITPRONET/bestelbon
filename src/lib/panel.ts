@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { userDb } from "./supabase-server";
 
-export type PanelRestaurant = { id: string; name: string; slug: string; company_id: string };
+export type PanelRestaurant = { id: string; name: string; slug: string; company_id: string; blocked?: string | null };
 
 /** Signed-in user, the restaurants they may manage (admins: all) and the selected one (?zaak=slug). */
 export async function panel(zaak?: string) {
@@ -22,7 +22,10 @@ export async function panel(zaak?: string) {
       .eq("restaurant_members.user_id", auth.user.id).order("name");
     restaurants = (data ?? []).map(({ id, name, slug, company_id }) => ({ id, name, slug, company_id }));
   }
-  const current = restaurants.find((r) => r.slug === zaak) ?? restaurants[0] ?? null;
+  const found = restaurants.find((r) => r.slug === zaak) ?? restaurants[0] ?? null;
+  // Geblokkeerd? Dan toont het paneel waarom (bestellingen staan stil).
+  const { data: co } = found ? await db.from("companies").select("blocked_at, blocked_reason").eq("id", found.company_id).maybeSingle() : { data: null };
+  const current = found ? { ...found, blocked: co?.blocked_at ? (co.blocked_reason ?? "andere") : null } : null;
   return { db, user: auth.user, isAdmin: !!adm, restaurants, current };
 }
 

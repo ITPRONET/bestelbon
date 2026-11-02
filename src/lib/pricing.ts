@@ -21,3 +21,10 @@ export function yearLines(planName: string, monthCents: number, fromLabel: strin
     { description: "Korting jaarlijkse betaling vooraf (10%)", qty: -1, unit_cents: Math.round(monthCents * 12 * YEAR_DISCOUNT) },
   ];
 }
+
+/** Extra lines for an admin discount (percentage) on the subscription amount of an invoice. */
+export function discountLine(pct: number, subscriptionCents: number, note?: string | null) {
+  if (!pct) return [];
+  return [{ description: `Korting ${pct}%${note ? ` (${note})` : ""}`, qty: -1, unit_cents: Math.round(subscriptionCents * pct / 100) }];
+}
+export const BLOCK_REASONS: Record<string, string> = { onbetaald: "Openstaande facturen", opgezegd: "Opgezegd", andere: "Andere reden" };

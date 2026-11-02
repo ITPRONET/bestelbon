@@ -86,6 +86,7 @@ export async function syncPayment(paymentId: string) {
     upd.status = "betaald"; upd.paid_at = new Date().toISOString(); upd.payment_method = p.sequenceType === "recurring" ? "domiciliëring" : `online (${p.method ?? "Mollie"})`;
   }
   await db.from("invoices").update(upd).eq("id", inv.id);
+  if (p.status === "paid") await unblockIfPaid(inv.company_id);
   if (p.mandateId && p.customerId) {
     const m = await api<Mandate>(`/customers/${p.customerId}/mandates/${p.mandateId}`);
     await db.from("companies").update({ mollie_mandate_id: m.id, mandate_status: m.status, mandate_label: mandateLabel(m) }).eq("id", inv.company_id);
@@ -102,4 +103,14 @@ export async function chargeDue() {
   let n = 0;
   for (const i of data ?? []) { try { if (await charge(i.id)) n++; } catch (e) { console.error("incasso", i.id, e); } }
   return n;
+}
+
+/** Blocked for unpaid invoices and nothing overdue anymore: open the order pages again. */
+export async function unblockIfPaid(companyId: string) {
+  const db = adminDb();
+  const { data: co } = await db.from("companies").select("blocked_at, blocked_reason").eq("id", companyId).maybeSingle();
+  if (!co?.blocked_at || co.blocked_reason !== "onbetaald") return;
+  const today = new Date().toISOString().slice(0, 10);
+  const { count } = await db.from("invoices").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "open").lt("due_on", today);
+  if (!count) await db.from("companies").update({ blocked_at: null, blocked_reason: null }).eq("id", companyId);
 }

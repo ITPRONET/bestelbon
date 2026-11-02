@@ -22,6 +22,11 @@ export default function PanelNav({ active, restaurants, current }: { active: str
           <button className="btn">Kies</button>
         </form>
       )}
+      {current?.blocked && (
+        <div className="alert" style={{ margin: "0 0 12px" }}>
+          <b>Je bestelpagina is tijdelijk geblokkeerd</b>{current.blocked === "onbetaald" ? <> wegens openstaande facturen. Klanten kunnen nu niet online bestellen. Betaal je facturen in <Link href={`/beheer/facturen${q}`}>Facturen &amp; gegevens</Link>; zodra alles betaald is, gaat je bestelpagina automatisch weer open.</> : <>. Neem contact op via info@bestelbon.eu.</>}
+        </div>
+      )}
       <nav className="tabs" aria-label="Beheer">
         {TABS.map(([path, label]) => (
           <Link key={path} href={`/beheer${path ? "/" + path : ""}${q}`} aria-current={active === path ? "page" : undefined}>{label}</Link>

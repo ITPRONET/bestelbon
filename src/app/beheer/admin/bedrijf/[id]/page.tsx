@@ -1,4 +1,6 @@
 import { setupText, type Setup } from "@/lib/setup";
+import { BLOCK_REASONS } from "@/lib/pricing";
+import { revalidatePath } from "next/cache";
 import { billingEnabled, charge } from "@/lib/billing";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -82,6 +84,56 @@ async function chargeNow(f: FormData) {
   redirect(`/beheer/admin/bedrijf/${cid}?${ok ? "ok=afgeschreven" : "fout=incasso"}`);
 }
 
+/** First month that has not been invoiced yet (YYYY-MM-01). */
+async function nextOpenMonth(db: Awaited<ReturnType<typeof adminOnly>>, id: string) {
+  const { data } = await db.from("invoices").select("period").eq("company_id", id).not("period", "is", null).order("period", { ascending: false }).limit(1).maybeSingle();
+  const now = new Date().toISOString().slice(0, 7);
+  const last = data?.period as string | undefined;
+  if (!last || last < now) return `${now}-01`;
+  const d = new Date(Date.UTC(Number(last.slice(0, 4)), Number(last.slice(5, 7)), 1));
+  return d.toISOString().slice(0, 10);
+}
+const monthEnd = (first: string, add = 0) => new Date(Date.UTC(Number(first.slice(0, 4)), Number(first.slice(5, 7)) + add, 0)).toISOString().slice(0, 10);
+
+async function giveFreeMonth(f: FormData) {
+  "use server";
+  const db = await adminOnly();
+  const id = String(f.get("id"));
+  const n = Math.max(1, Math.min(12, Number(f.get("n")) || 1));
+  const { data: co } = await db.from("companies").select("free_until").eq("id", id).single();
+  const start = await nextOpenMonth(db, id);
+  // Verleng vanaf de eerste nog niet gefactureerde maand, of vanaf de huidige gratis periode.
+  const from = co?.free_until && co.free_until >= start ? `${co.free_until.slice(0, 7)}-01` : start;
+  const until = co?.free_until && co.free_until >= start ? monthEnd(from, n + 1) : monthEnd(from, n);
+  await db.from("companies").update({ free_until: until }).eq("id", id);
+  redirect(`/beheer/admin/bedrijf/${id}?ok=gratis`);
+}
+
+async function saveDeal(f: FormData) {
+  "use server";
+  const db = await adminOnly();
+  const id = String(f.get("id"));
+  const pct = Math.max(0, Math.min(100, Math.round(Number(f.get("pct")) || 0)));
+  const d = (k: string) => (/^\d{4}-\d{2}-\d{2}$/.test(String(f.get(k) ?? "")) ? String(f.get(k)) : null);
+  await db.from("companies").update({
+    discount_pct: pct, discount_until: pct ? d("until") : null, discount_note: pct ? String(f.get("note") ?? "").trim().slice(0, 80) || null : null,
+    free_until: d("free_until"),
+  }).eq("id", id);
+  redirect(`/beheer/admin/bedrijf/${id}?ok=1`);
+}
+
+async function setBlocked(f: FormData) {
+  "use server";
+  const db = await adminOnly();
+  const id = String(f.get("id"));
+  const block = f.get("block") === "1";
+  const reason = String(f.get("reason") ?? "onbetaald");
+  await db.from("companies").update(block ? { blocked_at: new Date().toISOString(), blocked_reason: reason in BLOCK_REASONS ? reason : "andere" } : { blocked_at: null, blocked_reason: null }).eq("id", id);
+  const { data: rs } = await db.from("restaurants").select("slug").eq("company_id", id);
+  for (const r of rs ?? []) revalidatePath(`/${r.slug}`);
+  redirect(`/beheer/admin/bedrijf/${id}?ok=${block ? "geblokkeerd" : "gedeblokkeerd"}`);
+}
+
 export default async function Page({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; fout?: string; nieuw?: string; mail?: string }> }) {
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const db = await adminOnly();
@@ -107,7 +159,8 @@ export default async function Page({ params, searchParams }: { params: Promise<{
         <span className="pill">{PLAN[co.plan]}</span>
       </div>
       {sp.nieuw && <div className="okmsg">{nieuw[sp.nieuw]}</div>}
-      {sp.ok && <div className="okmsg">{sp.ok === "afgeschreven" ? "Afschrijving gestart bij Mollie." : "Opgeslagen."}</div>}
+      {sp.ok && <div className="okmsg">{({ afgeschreven: "Afschrijving gestart bij Mollie.", gratis: "Gratis maand toegevoegd.", geblokkeerd: "Klant geblokkeerd: bestelpagina's nemen geen bestellingen meer aan.", gedeblokkeerd: "Klant gedeblokkeerd." } as Record<string, string>)[sp.ok] ?? "Opgeslagen."}</div>}
+      {co.blocked_at && <div className="alert"><b>Geblokkeerd</b> sinds {shortDate(co.blocked_at.slice(0, 10))} · {BLOCK_REASONS[co.blocked_reason ?? ""] ?? co.blocked_reason}. De bestelpagina&apos;s nemen geen bestellingen aan.</div>}
       {sp.mail && <div className="okmsg">E-mail verstuurd.</div>}
       {sp.fout && <div className="alert">{errors[sp.fout] ?? "Er ging iets mis."}</div>}
 
@@ -196,6 +249,49 @@ export default async function Page({ params, searchParams }: { params: Promise<{
           ))}
         </div>
 
+        <div style={{ display: "grid", gap: 16, alignContent: "start", minWidth: 0 }}>
+        <section className="panel" style={{ display: "grid", gap: 12 }}>
+          <h2 className="h2">Korting en gratis maanden</h2>
+          <p className="small" style={{ margin: 0 }}>
+            {co.free_until && co.free_until >= new Date().toISOString().slice(0, 10) ? <><span className="pill ok">Gratis</span> abonnement t/m {shortDate(co.free_until)}</> : <span className="muted">Geen gratis periode.</span>}
+            {co.discount_pct > 0 && <> · <span className="pill ok">−{co.discount_pct}%</span> {co.discount_until ? `t/m ${shortDate(co.discount_until)}` : "zonder einddatum"}{co.discount_note ? ` (${co.discount_note})` : ""}</>}
+          </p>
+          <form action={giveFreeMonth} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end" }}>
+            <input type="hidden" name="id" value={id} />
+            <label className="field" style={{ width: 120 }}>Maanden<select name="n" defaultValue="1">{[1, 2, 3, 6, 12].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+            <button className="btn btn-primary">Gratis maand(en) geven</button>
+          </form>
+          <form action={saveDeal} style={{ display: "grid", gap: 10 }}>
+            <input type="hidden" name="id" value={id} />
+            <div className="fgrid">
+              <label className="field">Korting op abonnement (%)<input name="pct" type="number" min={0} max={100} defaultValue={co.discount_pct ?? 0} /></label>
+              <label className="field">Korting t/m (leeg = altijd)<input name="until" type="date" defaultValue={co.discount_until ?? ""} /></label>
+              <label className="field">Reden (op de factuur)<input name="note" maxLength={80} defaultValue={co.discount_note ?? ""} placeholder="bv. promotie opening" /></label>
+              <label className="field">Gratis t/m<input name="free_until" type="date" defaultValue={co.free_until ?? ""} /></label>
+            </div>
+            <p className="muted small" style={{ margin: 0 }}>Geldt voor nieuwe maand- en jaarfacturen. Gratis maanden: geen maandfactuur; bij jaarbetaling worden ze afgetrokken van de jaarfactuur.</p>
+            <div><button className="btn">Opslaan</button></div>
+          </form>
+        </section>
+        <section className="panel" style={{ display: "grid", gap: 10 }}>
+          <h2 className="h2">Blokkeren</h2>
+          {co.blocked_at ? (
+            <form action={setBlocked} style={{ display: "grid", gap: 8 }}>
+              <input type="hidden" name="id" value={id} /><input type="hidden" name="block" value="0" />
+              <p className="small" style={{ margin: 0 }}>Geblokkeerd sinds {shortDate(co.blocked_at.slice(0, 10))} ({BLOCK_REASONS[co.blocked_reason ?? ""] ?? co.blocked_reason}). Wordt automatisch opgeheven als de klant alle vervallen facturen online betaalt.</p>
+              <div><button className="btn btn-primary">Deblokkeren</button></div>
+            </form>
+          ) : (
+            <form action={setBlocked} style={{ display: "grid", gap: 8 }}>
+              <input type="hidden" name="id" value={id} /><input type="hidden" name="block" value="1" />
+              <p className="muted small" style={{ margin: 0 }}>De bestelpagina&apos;s van deze klant nemen dan geen bestellingen meer aan en de klant ziet in zijn paneel waarom. Het paneel en de facturen blijven bereikbaar, zodat hij kan betalen.</p>
+              <label className="field">Reden<select name="reason" defaultValue="onbetaald">{Object.entries(BLOCK_REASONS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+              <details className="confirm"><summary className="btn btn-danger">Blokkeren</summary>
+                <div className="confirm-box"><span className="small">Bestellingen van deze klant stoppen meteen.</span><button className="btn btn-danger">Ja, blokkeren</button></div>
+              </details>
+            </form>
+          )}
+        </section>
         <form action={saveCompany} className="panel" style={{ display: "grid", gap: 12, alignContent: "start" }}>
           <input type="hidden" name="id" value={id} />
           <h2 className="h2">Gegevens en abonnement</h2>
@@ -216,6 +312,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
           </div>
           <div><button className="btn btn-primary">Opslaan</button></div>
         </form>
+        </div>
       </div>
     </>
   );

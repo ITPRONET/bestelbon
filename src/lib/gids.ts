@@ -34,8 +34,8 @@ export async function gidsFor(pc: string) {
   const here = pcInfo(pc);
   if (!here) return null;
   const { data } = await adminDb().from("restaurants")
-    .select("slug, name, type, city, postcode, logo_path, brand_accent, delivery_fee_cents, min_order_cents, prep_minutes, is_open, companies!inner ( status, plan ), opening_hours ( weekday, opens, closes ), delivery_zones ( postcode, fee_cents, min_order_cents )")
-    .eq("in_gids", true).in("companies.status", ["actief", "achterstallig"]);
+    .select("slug, name, type, city, postcode, logo_path, brand_accent, delivery_fee_cents, min_order_cents, prep_minutes, is_open, companies!inner ( status, plan, blocked_at ), opening_hours ( weekday, opens, closes ), delivery_zones ( postcode, fee_cents, min_order_cents )")
+    .eq("in_gids", true).in("companies.status", ["actief", "achterstallig"]).is("companies.blocked_at", null);
   const now = weekMinute();
   const list: GidsZaak[] = [];
   for (const r of data ?? []) {

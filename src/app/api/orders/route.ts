@@ -40,8 +40,8 @@ export async function POST(req: Request) {
   const { count: recent } = await db.from("orders").select("id", { count: "exact", head: true }).eq("ip_hash", ip_hash).gte("created_at", new Date(Date.now() - 15 * 60_000).toISOString());
   if ((recent ?? 0) >= 6) return NextResponse.json({ error: "Te veel bestellingen na elkaar. Wacht even of bel de zaak." }, { status: 429 });
 
-  const { data: r } = await db.from("restaurants").select("id, slug, name, is_open, delivery_fee_cents, min_order_cents, prep_minutes").eq("slug", b.slug).maybeSingle();
-  if (!r || !r.is_open) return NextResponse.json({ error: "Deze zaak neemt nu geen online bestellingen aan." }, { status: 409 });
+  const { data: r } = await db.from("restaurants").select("id, slug, name, is_open, delivery_fee_cents, min_order_cents, prep_minutes, companies ( blocked_at )").eq("slug", b.slug).maybeSingle();
+  if (!r || !r.is_open || (r.companies as unknown as { blocked_at: string | null } | null)?.blocked_at) return NextResponse.json({ error: "Deze zaak neemt nu geen online bestellingen aan." }, { status: 409 });
   const online = b.payment === "online";
   if (online && !(await onlineReady(r.id))) return NextResponse.json({ error: "Online betalen is bij deze zaak nu niet mogelijk. Kies betalen bij levering of afhaling." }, { status: 409 });
 

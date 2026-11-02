@@ -28,21 +28,23 @@ export async function loadMenu(slug: string): Promise<Menu | null> {
       })),
     }));
   // Plan is not public data; the storefront only needs to know whether branding is allowed.
-  const [{ plan, trader }, online] = await Promise.all([
+  const [{ plan, trader, blocked }, online] = await Promise.all([
     companyOf(restaurant.company_id),
     import("./mollie").then((m) => m.onlineReady(restaurant.id)).catch(() => false),
   ]);
-  return { restaurant, categories, plan, trader, online, hours: hours ?? [], zones: zones ?? [] };
+  // Geblokkeerde klant (bv. onbetaalde facturen): bestelpagina toont "tijdelijk niet mogelijk".
+  if (blocked) restaurant.is_open = false;
+  return { restaurant, categories, plan, trader, online: online && !blocked, hours: hours ?? [], zones: zones ?? [] };
 }
 
 /** Plan (for branding) and the seller's legal details (consumer law: the shop must show who sells). */
-async function companyOf(companyId: string): Promise<{ plan: "standaard" | "pro"; trader: Trader | null }> {
+async function companyOf(companyId: string): Promise<{ plan: "standaard" | "pro"; trader: Trader | null; blocked?: boolean }> {
   try {
     const { adminDb } = await import("./supabase");
-    const { data } = await adminDb().from("companies").select("plan, legal_name, vat_number, street, postcode, city, email, phone").eq("id", companyId).maybeSingle();
+    const { data } = await adminDb().from("companies").select("plan, legal_name, vat_number, street, postcode, city, email, phone, blocked_at").eq("id", companyId).maybeSingle();
     if (!data) return { plan: "standaard", trader: null };
-    const { plan, ...t } = data;
-    return { plan: (plan as "standaard" | "pro") ?? "standaard", trader: t as Trader };
+    const { plan, blocked_at, ...t } = data;
+    return { plan: (plan as "standaard" | "pro") ?? "standaard", trader: t as Trader, blocked: !!blocked_at };
   } catch {
     return { plan: "standaard", trader: null };
   }
