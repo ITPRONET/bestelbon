@@ -86,9 +86,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
           {mandate
             ? <><p style={{ margin: 0 }}><span className="pill ok">Actief</span> {co.mandate_label ?? "Domiciliëring"}. Je {co.billing === "jaar" ? "jaarfactuur" : "maandfactuur"} wordt automatisch afgeschreven, {CHARGE_AFTER_DAYS} dagen na de factuurdatum. De factuur geldt als vooraankondiging. Stoppen kan via info@bestelbon.eu.</p></>
             : <p style={{ margin: 0 }}>Betaal je openstaande factuur online met Bancontact, kaart of je bankapp.</p>}
-          {payable.length > 0 && (
-            <form action={payInvoice} style={{ display: "grid", gap: 10, marginTop: 4 }}>
+          {payable.map((i) => (
+            // Eén formulier per factuur: de knop-waarde (name/value) komt niet mee in een server action.
+            <form key={i.id} action={payInvoice} style={{ display: "grid", gap: 10, marginTop: 4 }}>
               <input type="hidden" name="zaak" value={current.slug} />
+              <input type="hidden" name="id" value={i.id} />
               {!mandate && <>
                 <label className="check" style={{ alignItems: "flex-start", fontWeight: 400 }}>
                   <input type="checkbox" name="mandaat" style={{ marginTop: 4 }} />
@@ -96,11 +98,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
                 </label>
                 <p className="muted small" style={{ margin: 0 }}>Niet aangevinkt? Dan betaal je enkel deze factuur online en betaal je volgende facturen zelf.</p>
               </>}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {payable.map((i) => <button key={i.id} className="btn btn-primary" name="id" value={i.id}>Betaal {i.number} · {eur(i.total_cents)}</button>)}
-              </div>
+              <div><button className="btn btn-primary">Betaal {i.number} · {eur(i.total_cents)}</button></div>
             </form>
-          )}
+          ))}
         </section>
       )}
       <div className="kpis">
