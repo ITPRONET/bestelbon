@@ -97,7 +97,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
                     <td>{shortDate(i.issued_on)}</td>
                     <td>{eur(i.total_cents)}</td>
                     <td><span className={`pill ${STATUS[st]?.[1] ?? ""}`}>{STATUS[st]?.[0] ?? st}</span>{i.status === "open" && ["pending", "open", "authorized"].includes(i.mollie_status ?? "") && <small className="muted"> · betaling loopt</small>}</td>
-                    {online && <td>{i.status === "open" && !["pending", "authorized"].includes(i.mollie_status ?? "") && !(mandate && i.mollie_status === "open") && (
+                    {online && <td>{i.status === "open" && !["pending", "authorized", "open"].includes(i.mollie_status ?? "") && (!mandate || i.mollie_status === "failed") && (
                       <form action={payInvoice}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="zaak" value={current.slug} /><button className="btn btn-primary">Online betalen</button></form>
                     )}</td>}
                   </tr>

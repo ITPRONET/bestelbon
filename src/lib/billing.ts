@@ -95,8 +95,9 @@ export async function syncPayment(paymentId: string) {
 export async function chargeDue() {
   const db = adminDb();
   const until = new Date(Date.now() - CHARGE_AFTER_DAYS * 86400_000).toISOString().slice(0, 10);
+  // Nog nooit betaald via Mollie, of een online poging die werd afgebroken of verliep (geen mislukte domiciliëring: die volgt de admin op).
   const { data } = await db.from("invoices").select("id, companies!inner ( mandate_status )")
-    .eq("status", "open").is("mollie_payment_id", null).lte("issued_on", until).eq("companies.mandate_status", "valid").limit(200);
+    .eq("status", "open").or("mollie_payment_id.is.null,mollie_status.in.(canceled,expired)").lte("issued_on", until).eq("companies.mandate_status", "valid").limit(200);
   let n = 0;
   for (const i of data ?? []) { try { if (await charge(i.id)) n++; } catch (e) { console.error("incasso", i.id, e); } }
   return n;
