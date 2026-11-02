@@ -62,6 +62,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
   const unpaid = (invoices ?? []).filter((i) => ["open", "vervallen"].includes(shownStatus(i)));
   const mandate = co.mandate_status === "valid";
   const online = billingEnabled();
+  // Online te betalen: open, geen betaling bezig, en niet al via domiciliëring (behalve na een mislukte afschrijving).
+  const payable = online ? (invoices ?? []).filter((i) => i.status === "open" && !["pending", "authorized", "open"].includes(i.mollie_status ?? "") && (!mandate || i.mollie_status === "failed")) : [];
   const errors: Record<string, string> = { betalen: "Online betalen lukt nu niet. Probeer later opnieuw of betaal via overschrijving.", btw: "Dit btw-nummer klopt niet. Controleer het nummer.", mail: "Vul een geldig e-mailadres in.", opslaan: "Opslaan is niet gelukt. Probeer opnieuw." };
   return (
     <>
@@ -80,16 +82,23 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
         <section className="panel" style={{ display: "grid", gap: 6 }}>
           <h2 className="h2">Betaling</h2>
           {mandate
-            ? <><p style={{ margin: 0 }}><span className="pill ok">Actief</span> {co.mandate_label ?? "Domiciliëring"}. Je {co.billing === "jaar" ? "jaarfactuur" : "maandfactuur"} wordt automatisch afgeschreven, {CHARGE_AFTER_DAYS} dagen na de factuurdatum. De factuur geldt als vooraankondiging. Stoppen kan via info@bestelbon.eu.</p><form id="payform" action={payInvoice} hidden><input type="hidden" name="zaak" value={current.slug} /></form></>
-            : <form id="payform" action={payInvoice} style={{ display: "grid", gap: 8 }}>
-                <input type="hidden" name="zaak" value={current.slug} />
-                <p style={{ margin: 0 }}>Betaal je openstaande factuur online met Bancontact, kaart of je bankapp.</p>
+            ? <><p style={{ margin: 0 }}><span className="pill ok">Actief</span> {co.mandate_label ?? "Domiciliëring"}. Je {co.billing === "jaar" ? "jaarfactuur" : "maandfactuur"} wordt automatisch afgeschreven, {CHARGE_AFTER_DAYS} dagen na de factuurdatum. De factuur geldt als vooraankondiging. Stoppen kan via info@bestelbon.eu.</p></>
+            : <p style={{ margin: 0 }}>Betaal je openstaande factuur online met Bancontact, kaart of je bankapp.</p>}
+          {payable.length > 0 && (
+            <form action={payInvoice} style={{ display: "grid", gap: 10, marginTop: 4 }}>
+              <input type="hidden" name="zaak" value={current.slug} />
+              {!mandate && <>
                 <label className="check" style={{ alignItems: "flex-start", fontWeight: 400 }}>
                   <input type="checkbox" name="mandaat" style={{ marginTop: 4 }} />
                   <span>Ik machtig {sel.name || "ITPRONET"} om mijn volgende BestelBon-{co.billing === "jaar" ? "jaarfacturen" : "maandfacturen"} automatisch af te schrijven via Mollie (SEPA-domiciliëring of kaart), ten vroegste {CHARGE_AFTER_DAYS} dagen na de factuurdatum. De factuur geldt als vooraankondiging. Ik kan dit altijd stoppen via info@bestelbon.eu.</span>
                 </label>
                 <p className="muted small" style={{ margin: 0 }}>Niet aangevinkt? Dan betaal je enkel deze factuur online en betaal je volgende facturen zelf.</p>
-              </form>}
+              </>}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {payable.map((i) => <button key={i.id} className="btn btn-primary" name="id" value={i.id}>Betaal {i.number} · {eur(i.total_cents)}</button>)}
+              </div>
+            </form>
+          )}
         </section>
       )}
       <div className="kpis">
@@ -103,7 +112,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
           <h2 className="h2">Facturen</h2>
           {!invoices?.length ? <p className="muted" style={{ margin: 0 }}>Nog geen facturen.</p> : (
             <table className="tbl">
-              <thead><tr><th>Nummer</th><th>Datum</th><th>Bedrag</th><th>Status</th>{online && <th></th>}</tr></thead>
+              <thead><tr><th>Nummer</th><th>Datum</th><th>Bedrag</th><th>Status</th></tr></thead>
               <tbody>{invoices.map((i) => {
                 const st = shownStatus(i);
                 return (
@@ -112,9 +121,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
                     <td>{shortDate(i.issued_on)}</td>
                     <td>{eur(i.total_cents)}</td>
                     <td><span className={`pill ${STATUS[st]?.[1] ?? ""}`}>{STATUS[st]?.[0] ?? st}</span>{i.status === "open" && ["pending", "open", "authorized"].includes(i.mollie_status ?? "") && <small className="muted"> · betaling loopt</small>}</td>
-                    {online && <td>{i.status === "open" && !["pending", "authorized", "open"].includes(i.mollie_status ?? "") && (!mandate || i.mollie_status === "failed") && (
-                      <button className="btn btn-primary" form="payform" name="id" value={i.id}>Online betalen</button>
-                    )}</td>}
+
                   </tr>
                 );
               })}</tbody>
