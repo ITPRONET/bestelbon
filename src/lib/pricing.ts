@@ -1,8 +1,8 @@
 import { today } from "./panel";
 
 /** Promotion: administrative start-up costs are waived for contracts signed up to and including this date. */
-export const ADMIN_FREE_UNTIL = "2026-12-31";
-export const ADMIN_FREE_LABEL = "31 december 2026";
+export const ADMIN_FREE_UNTIL = "2027-01-31";
+export const ADMIN_FREE_LABEL = "31 januari 2027";
 export const YEAR_DISCOUNT = 0.1;
 
 export const adminFeeWaived = (on = today()) => on <= ADMIN_FREE_UNTIL;
