@@ -158,9 +158,13 @@ async function loadTemplate(f: FormData) {
   const db = await userDb(); const rid = s(f, "rid");
   const t = TEMPLATES.find((x) => x.key === s(f, "key"));
   if (!t) return;
-  const { count } = await db.from("menu_categories").select("id", { count: "exact", head: true }).eq("restaurant_id", rid);
-  for (const [ci, c] of t.categories.entries()) {
-    const { data: cat } = await db.from("menu_categories").insert({ restaurant_id: rid, name: c.name, position: (count ?? 0) + ci + 1 }).select("id").single();
+  const { data: have } = await db.from("menu_categories").select("name").eq("restaurant_id", rid);
+  const names = new Set((have ?? []).map((c) => c.name.toLowerCase()));
+  // Al geladen (bv. twee keer geklikt)? Dan niets dubbel toevoegen.
+  if (t.categories.some((c) => c.groups?.length && names.has(c.name.toLowerCase()))) redirect(`/beheer/menu?zaak=${s(f, "zaak")}&voorbeeld=al`);
+  const count = have?.length ?? 0;
+  for (const [ci, c] of t.categories.filter((c) => !names.has(c.name.toLowerCase())).entries()) {
+    const { data: cat } = await db.from("menu_categories").insert({ restaurant_id: rid, name: c.name, position: count + ci + 1 }).select("id").single();
     if (!cat) continue;
     if (c.items.length) await db.from("menu_items").insert(c.items.map(([name, cents, description], i) => ({ restaurant_id: rid, category_id: cat.id, name, price_cents: cents, description: description ?? null, position: i + 1 })));
     for (const [gi, g] of (c.groups ?? []).entries()) {
@@ -223,7 +227,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
         <div><h1 className="ph">Menu</h1><p className="muted small" style={{ margin: 0 }}>Wijzigingen staan binnen een halve minuut op je bestelpagina.</p></div>
         <form action={addCategory} className="dayform"><H n="rid" v={rid} /><label className="field">Nieuwe categorie<input name="name" placeholder="bv. Sauzen" required /></label><button className="btn btn-primary">Toevoegen</button></form>
       </div>
-      {sp.voorbeeld && <div className="okmsg">Voorbeeldmenu geladen. Pas nu je prijzen aan (per categorie: “Prijzen aanpassen”) en verwijder wat je niet verkoopt.</div>}
+      {sp.voorbeeld === "al" && <div className="alert">Dit voorbeeldmenu staat al in je menu.</div>}
+      {sp.voorbeeld === "1" && <div className="okmsg">Voorbeeldmenu geladen. Pas nu je prijzen aan (per categorie: “Prijzen aanpassen”) en verwijder wat je niet verkoopt.</div>}
       <details className="panel tpl" open={!cats.length}>
         <summary><b>Snel starten met een voorbeeldmenu</b> <span className="muted small">· alles aanpasbaar</span></summary>
         <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
