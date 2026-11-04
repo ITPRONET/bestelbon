@@ -1,9 +1,9 @@
 import { publicDb } from "./supabase";
 import type { Menu, Category, Trader } from "./types";
 
-const SELECT = `id, name, position,
-  menu_items ( id, name, description, price_cents, available, image_path, position,
-    option_groups ( id, name, multi, required, position, option_choices ( id, name, extra_cents, position ) ) )`;
+const GROUP = "id, name, multi, required, max_select, position, option_choices ( id, name, extra_cents, position )";
+const SELECT = `id, name, position, option_groups ( ${GROUP} ),
+  menu_items ( id, name, description, price_cents, available, image_path, position, option_groups ( ${GROUP} ) )`;
 
 export async function loadMenu(slug: string): Promise<Menu | null> {
   const db = publicDb();
@@ -16,15 +16,15 @@ export async function loadMenu(slug: string): Promise<Menu | null> {
     db.from("opening_hours").select("weekday, opens, closes").eq("restaurant_id", restaurant.id),
     db.from("delivery_zones").select("postcode, fee_cents, min_order_cents").eq("restaurant_id", restaurant.id).order("postcode"),
   ]);
-  const categories = ((cats ?? []) as unknown as Category[])
+  const sortGroups = (gs: Category["menu_items"][number]["option_groups"]) =>
+    [...gs].sort((a, b) => a.position - b.position).map((g) => ({ ...g, option_choices: [...g.option_choices].sort((a, b) => a.position - b.position) }));
+  const categories = ((cats ?? []) as unknown as (Category & { option_groups?: Category["menu_items"][number]["option_groups"] })[])
     .sort((a, b) => a.position - b.position)
-    .map((c) => ({
+    .map(({ option_groups: catGroups, ...c }) => ({
       ...c,
+      // Opties van de categorie (bv. broodsoort, formaat) gelden voor elk gerecht erin, vóór de eigen opties.
       menu_items: c.menu_items.sort((a, b) => a.position - b.position).map((i) => ({
-        ...i,
-        option_groups: i.option_groups.sort((a, b) => a.position - b.position).map((g) => ({
-          ...g, option_choices: g.option_choices.sort((a, b) => a.position - b.position),
-        })),
+        ...i, option_groups: [...sortGroups(catGroups ?? []), ...sortGroups(i.option_groups)],
       })),
     }));
   // Plan is not public data; the storefront only needs to know whether branding is allowed.

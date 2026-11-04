@@ -20,7 +20,7 @@ const Body = z.object({
   postcode: z.string().trim().max(10).optional(),
   city: z.string().trim().max(60).optional(),
   note: z.string().trim().max(200).optional(),
-  lines: z.array(z.object({ itemId: z.string().uuid(), choiceIds: z.array(z.string().uuid()).max(20), qty: z.number().int().min(1).max(50) })).min(1).max(40),
+  lines: z.array(z.object({ itemId: z.string().uuid(), choiceIds: z.array(z.string().uuid()).max(60), qty: z.number().int().min(1).max(50) })).min(1).max(40),
 });
 
 const PRINTER_TIMEOUT_MS = 2 * 60 * 1000;
@@ -73,11 +73,21 @@ export async function POST(req: Request) {
 
   // Prijzen altijd opnieuw uit de database halen, nooit uit de browser.
   const itemIds = [...new Set(b.lines.map((l) => l.itemId))];
+  type G = { id: string; name: string; required: boolean; multi: boolean; max_select: number | null; position: number; option_choices: { id: string; name: string; extra_cents: number }[] };
+  const GSEL = "id, name, required, multi, max_select, position, option_choices ( id, name, extra_cents )";
   const { data: items } = await db.from("menu_items")
-    .select("id, name, price_cents, available, option_groups ( id, name, required, multi, option_choices ( id, name, extra_cents ) )")
+    .select(`id, name, price_cents, available, category_id, option_groups ( ${GSEL} )`)
     .eq("restaurant_id", r.id).in("id", itemIds);
-  type It = { id: string; name: string; price_cents: number; available: boolean; option_groups: { id: string; name: string; required: boolean; multi: boolean; option_choices: { id: string; name: string; extra_cents: number }[] }[] };
-  const byId = new Map(((items ?? []) as It[]).map((i) => [i.id, i]));
+  type It = { id: string; name: string; price_cents: number; available: boolean; category_id: string; option_groups: G[] };
+  // Opties van de categorie gelden ook voor elk gerecht erin.
+  const catIds = [...new Set(((items ?? []) as It[]).map((i) => i.category_id))];
+  const { data: catGroups } = catIds.length
+    ? await db.from("option_groups").select(`category_id, ${GSEL}`).eq("restaurant_id", r.id).in("category_id", catIds)
+    : { data: [] };
+  const byPos = (a: G, b: G) => a.position - b.position;
+  const byId = new Map(((items ?? []) as It[]).map((i) => [i.id, {
+    ...i, option_groups: [...((catGroups ?? []) as (G & { category_id: string })[]).filter((g) => g.category_id === i.category_id).sort(byPos), ...i.option_groups.sort(byPos)],
+  }]));
 
   const lines: { item_id: string; item_name: string; options: string[]; unit_cents: number; qty: number }[] = [];
   for (const l of b.lines) {
@@ -89,6 +99,7 @@ export async function POST(req: Request) {
       const picked = g.option_choices.filter((c) => l.choiceIds.includes(c.id));
       if (g.required && picked.length === 0) return NextResponse.json({ error: `Kies ${g.name.toLowerCase()} voor ${it.name}.` }, { status: 400 });
       if (!g.multi && picked.length > 1) return NextResponse.json({ error: `Kies één ${g.name.toLowerCase()} voor ${it.name}.` }, { status: 400 });
+      if (g.multi && g.max_select && picked.length > g.max_select) return NextResponse.json({ error: `Kies maximaal ${g.max_select} × ${g.name.toLowerCase()} voor ${it.name}.` }, { status: 400 });
       for (const c of picked) { unit += c.extra_cents; opts.push(c.name); }
     }
     lines.push({ item_id: it.id, item_name: it.name, options: opts, unit_cents: unit, qty: l.qty });

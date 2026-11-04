@@ -506,3 +506,18 @@ button:disabled,.btn:disabled,select:disabled{cursor:not-allowed}
 .admin-search{display:flex;gap:6px;flex:1;min-width:240px;max-width:520px}
 .admin-search input{flex:1;min-width:0;font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:#fff}
 .row-blocked td{background:#fff3f2}
+
+.s-choice.off{opacity:.45;cursor:not-allowed}
+
+/* menu editor: categorie-opties, sjablonen, bulk */
+.tpl summary,.catopts summary,.grp-edit summary{cursor:pointer;list-style:none}
+.tpl summary::-webkit-details-marker,.catopts summary::-webkit-details-marker,.grp-edit summary::-webkit-details-marker{display:none}
+.tpl-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid var(--line);border-radius:12px;padding:12px}
+.catopts{background:var(--bg);border-radius:12px;padding:10px 12px;margin:4px 0 10px}
+.grp-edit{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.grp-edit summary{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.grp-edit textarea,.bulk textarea{font:inherit;width:100%;border:1px solid var(--line);border-radius:10px;padding:8px 10px;resize:vertical}
+.pricegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 14px}
+.pricerow{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px}
+.pricerow input{width:90px;font:inherit;text-align:right;padding:6px 8px;border:1px solid var(--line);border-radius:8px}
+.field textarea{font:inherit;width:100%;border:1px solid var(--line);border-radius:10px;padding:8px 10px;resize:vertical;background:#fff}

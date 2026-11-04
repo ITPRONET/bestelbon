@@ -365,8 +365,15 @@ function ItemSheet({ item, storageUrl, onClose, onAdd }: { item: Item; storageUr
   const missing = item.option_groups.filter((g) => g.required && !sel[g.id]?.length);
   const chosen = Object.values(sel).flat();
   const extra = item.option_groups.flatMap((g) => g.option_choices).filter((c) => chosen.includes(c.id)).reduce((s, c) => s + c.extra_cents, 0);
-  const toggle = (gid: string, cid: string, multi: boolean) =>
-    setSel((s) => ({ ...s, [gid]: multi ? (s[gid].includes(cid) ? s[gid].filter((x) => x !== cid) : [...s[gid], cid]) : [cid] }));
+  // Verplichte enkele keuze = rondje; optionele of meerdere keuzes = vinkje (opnieuw tikken = weg). Max. aantal respecteren.
+  const limit = (g: Item["option_groups"][number]) => (g.multi ? g.max_select ?? 99 : 1);
+  const toggle = (g: Item["option_groups"][number], cid: string) =>
+    setSel((s) => {
+      const cur = s[g.id] ?? [];
+      if (cur.includes(cid)) return g.required && !g.multi ? s : { ...s, [g.id]: cur.filter((x) => x !== cid) };
+      if (!g.multi) return { ...s, [g.id]: [cid] };
+      return cur.length >= limit(g) ? s : { ...s, [g.id]: [...cur, cid] };
+    });
   return (
     <SheetFrame title={item.name} onClose={onClose}
       footer={
@@ -385,13 +392,15 @@ function ItemSheet({ item, storageUrl, onClose, onAdd }: { item: Item; storageUr
       {item.description && <p className="muted" style={{ marginTop: 0 }}>{item.description}</p>}
       {item.option_groups.map((g) => (
         <fieldset className="s-group" key={g.id}>
-          <legend><b>{g.name}</b><span className={`s-tag ${g.required && !sel[g.id]?.length ? "req" : ""}`}>{g.required ? (sel[g.id]?.length ? "✓" : "Verplicht") : g.multi ? "Optioneel · meerdere" : "Optioneel"}</span></legend>
+          <legend><b>{g.name}</b><span className={`s-tag ${g.required && !sel[g.id]?.length ? "req" : ""}`}>{g.required ? (sel[g.id]?.length ? "✓" : "Verplicht") : g.multi ? (g.max_select ? `Optioneel · max. ${g.max_select}` : "Optioneel · meerdere") : "Optioneel"}</span></legend>
           {g.option_choices.map((c) => {
             const on = sel[g.id]?.includes(c.id) ?? false;
+            const radio = !g.multi && g.required;
+            const full = g.multi && !on && (sel[g.id]?.length ?? 0) >= limit(g);
             return (
-              <label key={c.id} className={`s-choice ${on ? "on" : ""}`}>
-                <input type={g.multi ? "checkbox" : "radio"} name={g.id} checked={on} onChange={() => toggle(g.id, c.id, g.multi)} />
-                <span className={`s-mark ${g.multi ? "box" : ""}`} aria-hidden="true" />
+              <label key={c.id} className={`s-choice ${on ? "on" : ""} ${full ? "off" : ""}`}>
+                <input type={radio ? "radio" : "checkbox"} name={g.id} checked={on} disabled={full} onChange={() => toggle(g, c.id)} />
+                <span className={`s-mark ${radio ? "" : "box"}`} aria-hidden="true" />
                 <span className="s-cn">{c.name}</span>
                 {c.extra_cents > 0 && <span className="num s-ce">+{eur(c.extra_cents)}</span>}
               </label>

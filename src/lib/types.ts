@@ -1,5 +1,5 @@
 export type Choice = { id: string; name: string; extra_cents: number; position: number };
-export type Group = { id: string; name: string; multi: boolean; required: boolean; position: number; option_choices: Choice[] };
+export type Group = { id: string; name: string; multi: boolean; required: boolean; max_select?: number | null; position: number; option_choices: Choice[] };
 export type Item = {
   id: string; name: string; description: string | null; price_cents: number; available: boolean;
   image_path: string | null; position: number; option_groups: Group[];
