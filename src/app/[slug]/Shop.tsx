@@ -289,7 +289,7 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
                 <button aria-selected={pay === "online"} onClick={() => setPay("online")}>Online betalen</button>
                 <button aria-selected={pay === "cash"} onClick={() => setPay("cash")}>{mode === "levering" ? "Bij levering" : "Bij afhaling"}</button>
               </div>
-              {pay === "online" && <p className="muted small" style={{ margin: 0 }}>Bancontact, Payconiq, kaart of Apple Pay via Mollie. Je betaalt rechtstreeks aan {r.name}.</p>}
+              {pay === "online" && <p className="muted small" style={{ margin: 0 }}>Bancontact, kaart of Apple Pay via Mollie. Je betaalt rechtstreeks aan {r.name}.</p>}
             </>}
 
             <div className="s-sum">

@@ -248,10 +248,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
         <h2 className="h2">Online betalen <span className="pill">Mollie</span></h2>
         {sp.mollie && MOLLIE_MSG[sp.mollie] && <div className={MOLLIE_MSG[sp.mollie][0]} style={{ margin: 0 }}>{MOLLIE_MSG[sp.mollie][1]}</div>}
         {!mollieEnabled() ? (
-          <p className="muted" style={{ margin: 0 }}>Binnenkort: klanten betalen online met Bancontact, Payconiq, kaart of Apple Pay. Het geld komt rechtstreeks op je eigen rekening. Wil je alvast starten? <a href={process.env.NEXT_PUBLIC_MOLLIE_SIGNUP_URL || "https://my.mollie.com/dashboard/signup?lang=nl"} target="_blank" rel="noopener">Maak gratis een Mollie-account aan</a>; koppelen kan hier zodra het klaar is.</p>
+          <p className="muted" style={{ margin: 0 }}>Binnenkort: klanten betalen online met Bancontact, kaart of Apple Pay. Het geld komt rechtstreeks op je eigen rekening. Wil je alvast starten? <a href={process.env.NEXT_PUBLIC_MOLLIE_SIGNUP_URL || "https://my.mollie.com/dashboard/signup?lang=nl"} target="_blank" rel="noopener">Maak gratis een Mollie-account aan</a>; koppelen kan hier zodra het klaar is.</p>
         ) : !pay ? (
           <>
-            <p style={{ margin: 0 }}>Koppel je eigen Mollie-account. Klanten betalen dan online met Bancontact, Payconiq, kaart of Apple Pay, en <b>het geld komt rechtstreeks op jouw rekening</b>. BestelBon rekent hier niets voor aan; je betaalt enkel de transactiekost van Mollie.</p>
+            <p style={{ margin: 0 }}>Koppel je eigen Mollie-account. Klanten betalen dan online met Bancontact, kaart of Apple Pay, en <b>het geld komt rechtstreeks op jouw rekening</b>. BestelBon rekent hier niets voor aan; je betaalt enkel de transactiekost van Mollie.</p>
             <ol className="small" style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 4 }}>
               <li>Heb je al een Mollie-account? Klik op <b>Koppel Mollie</b>, log in en geef toestemming.</li>
               <li>Nog geen account? <a href={process.env.NEXT_PUBLIC_MOLLIE_SIGNUP_URL || "https://my.mollie.com/dashboard/signup?lang=nl"} target="_blank" rel="noopener">Maak gratis een Mollie-account aan</a> (bedrijfsgegevens, rekeningnummer, identiteitscontrole), en kom dan terug om te koppelen. Je kunt het account ook aanmaken via de knop hieronder.</li>
