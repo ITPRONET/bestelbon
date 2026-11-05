@@ -8,13 +8,14 @@ export const mailEnabled = () => !!(process.env.SMTP_HOST && process.env.SMTP_PA
  * (Brevo: smtp-relay.brevo.com:587, Resend: smtp.resend.com:465). Returns false when mail is off or fails.
  */
 export async function sendMail(m: { to: string; subject: string; text: string; html?: string; replyTo?: string; fromName?: string }) {
-  if (!mailEnabled()) return false;
+  if (!mailEnabled()) { console.warn("mail off: SMTP_HOST/SMTP_PASS ontbreken"); return false; }
   const port = Number(process.env.SMTP_PORT || 465);
   const fromAddr = process.env.MAIL_FROM_ADDRESS || "info@bestelbon.eu";
   const from = m.fromName ? `"${m.fromName.replace(/"/g, "")}" <${fromAddr}>` : process.env.MAIL_FROM || `"BestelBon" <${fromAddr}>`;
   try {
     const t = nodemailer.createTransport({ host: process.env.SMTP_HOST, port, secure: port === 465, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
-    await t.sendMail({ from, to: m.to, subject: m.subject, text: m.text, html: m.html, replyTo: m.replyTo });
+    const info = await t.sendMail({ from, to: m.to, subject: m.subject, text: m.text, html: m.html, replyTo: m.replyTo });
+    console.log("mail sent", info.messageId, info.response, `to=${m.to.replace(/^(.).*@/, "$1***@")}`);
     return true;
   } catch (e) {
     console.error("mail", (e as Error).message);
