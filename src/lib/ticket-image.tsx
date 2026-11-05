@@ -109,7 +109,12 @@ function Delivery({ name, o, lines, qr }: { name: string; o: TicketOrder; lines:
       {o.note && <div style={{ display: "flex", fontSize: 26, marginTop: 6, lineHeight: 1.3 }}><span style={{ fontWeight: 700, paddingRight: 10 }}>Opm:</span><span style={{ flex: 1 }}>{o.note}</span></div>}
       <Rule />
       <Col style={{ gap: 2 }}>
-        {lines.map((l, i) => <Row key={i} l={`${l.qty}x ${l.item_name}`} r={money(l.qty * l.unit_cents)} />)}
+        {lines.map((l, i) => (
+          <Col key={i} style={{ marginBottom: 4 }}>
+            <Row l={`${l.qty}x ${l.item_name}`} r={money(l.qty * l.unit_cents)} weight={700} />
+            {l.options.map((opt, j) => <div key={j} style={{ display: "flex", fontSize: 24, paddingLeft: 30, lineHeight: 1.25 }}>{`> ${opt}`}</div>)}
+          </Col>
+        ))}
         {o.delivery_fee_cents > 0 && <Row l="Leverkost" r={money(o.delivery_fee_cents)} />}
       </Col>
       <Rule />

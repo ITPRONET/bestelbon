@@ -46,7 +46,10 @@ export function deliveryTicket(name: string, o: TicketOrder, lines: TicketLine[]
   out.push(hr(), ascii(o.customer_name ?? ""), ...(o.address ? wrap(o.address) : []), ...(o.postcode || o.city ? [ascii(`${o.postcode ?? ""} ${o.city ?? ""}`.trim())] : []), ascii(`Tel: ${o.customer_phone ?? ""}`));
   if (o.note) out.push(...wrap(`Opm: ${o.note}`));
   out.push(hr());
-  for (const l of lines) out.push(lr(`${l.qty}x ${l.item_name}`, money(l.qty * l.unit_cents)));
+  for (const l of lines) {
+    out.push(lr(`${l.qty}x ${l.item_name}`, money(l.qty * l.unit_cents)));
+    for (const opt of l.options) out.push(...wrap(`> ${opt}`, "    "));
+  }
   if (o.delivery_fee_cents) out.push(lr("Leverkost", money(o.delivery_fee_cents)));
   out.push(hr(), lr("TOTAAL", `EUR ${money(o.total_cents)}`), bar(payLine(o)), "", center("BestelBon - bestelbon.eu"), "", "");
   return out.join("\n");
