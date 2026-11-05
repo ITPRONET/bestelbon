@@ -32,7 +32,7 @@ export async function sendOrderReceived(orderId: string) {
     ...(o.note ? [`Opmerking: ${o.note}`] : []), "",
     `Volg je bestelling: ${statusUrl}`,
     r.phone ? `Vragen over je bestelling? Bel ${r.name}: ${r.phone}` : "",
-    "", "Smakelijk!", `${r.name}`, "", "Verstuurd via BestelBon. Je gegevens worden 30 dagen na de bestelling gewist.",
+    "", "Smakelijk!", `${r.name}`, "", "Verstuurd via BestelBon (https://bestelbon.eu). Je gegevens worden 30 dagen na de bestelling gewist.",
   ].join("\n");
 
   const F = "font-family:Arial,Helvetica,sans-serif";
@@ -61,7 +61,7 @@ export async function sendOrderReceived(orderId: string) {
     </td></tr></table>
     ${r.phone ? `<p style="margin:18px 0 0;font-size:14px;color:#141a3a">Vragen? Bel ${esc(r.name)}: <a href="tel:${esc(r.phone)}" style="color:#141a3a;font-weight:bold">${esc(r.phone)}</a></p>` : ""}
   </td></tr>
-  <tr><td align="center" style="padding:14px 0 0;${F};font-size:12px;color:#596088">Verstuurd via <b>BestelBon</b> &middot; je gegevens worden 30 dagen na de bestelling gewist</td></tr>
+  <tr><td align="center" style="padding:14px 0 0;${F};font-size:12px;color:#596088">Verstuurd via <a href="https://bestelbon.eu" style="color:#596088;font-weight:bold;text-decoration:underline">BestelBon</a> &middot; je gegevens worden 30 dagen na de bestelling gewist</td></tr>
 </table>
 </td></tr></table>
 </body></html>`;
