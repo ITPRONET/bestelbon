@@ -7,6 +7,8 @@ import { today } from "@/lib/panel";
 import { PEPPOL, periodLabel, shortDate, shownStatus, STATUS } from "@/lib/invoice";
 import { discountLine, yearLines } from "@/lib/pricing";
 import { unblockIfPaid } from "@/lib/billing";
+import { after } from "next/server";
+import { octopusEnabled, syncInvoiceToOctopus } from "@/lib/octopus";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Facturen" };
@@ -55,6 +57,15 @@ async function monthly(f: FormData) {
   redirect(`/beheer/admin/facturen?gemaakt=${n}&maand=${period}`);
 }
 
+const OCTO: Record<string, string> = { bezig: "bezig…", aangemaakt: "aangemaakt, nog niet verstuurd", peppol_bezig: "via Peppol onderweg", peppol_ok: "afgeleverd via Peppol", email_ok: "per e-mail verstuurd", test_niet_verstuurd: "testmodus (niet verstuurd)", fout: "fout", nul_bedrag: "€ 0, overgeslagen" };
+
+async function octoRetry(f: FormData) {
+  "use server";
+  await adminOnly();
+  await syncInvoiceToOctopus(s(f, "id"), { force: true });
+  redirect("/beheer/admin/facturen");
+}
+
 async function setStatus(f: FormData) {
   "use server";
   const db = await adminOnly();
@@ -69,6 +80,7 @@ async function setStatus(f: FormData) {
   if (st === "betaald") {
     const { data: inv } = await db.from("invoices").select("company_id").eq("id", s(f, "id")).maybeSingle();
     if (inv) await unblockIfPaid(inv.company_id);
+    after(() => syncInvoiceToOctopus(s(f, "id")).then(() => undefined));
   }
   redirect(`/beheer/admin/facturen?${new URLSearchParams({ status: s(f, "f_status"), maand: s(f, "f_maand") })}`);
 }
@@ -76,7 +88,7 @@ async function setStatus(f: FormData) {
 export default async function Page({ searchParams }: { searchParams: Promise<{ status?: string; maand?: string; gemaakt?: string; fout?: string }> }) {
   const sp = await searchParams;
   const db = await adminOnly();
-  let q = db.from("invoices").select("id, number, issued_on, due_on, status, total_cents, vat_cents, peppol_status, period, payment_method, companies(id, legal_name)").order("seq", { ascending: false }).limit(500);
+  let q = db.from("invoices").select("id, number, issued_on, due_on, status, total_cents, vat_cents, peppol_status, period, payment_method, octopus_status, octopus_doc, octopus_error, companies(id, legal_name)").order("seq", { ascending: false }).limit(500);
   if (sp.maand && /^\d{4}-\d{2}$/.test(sp.maand)) q = q.gte("issued_on", `${sp.maand}-01`).lt("issued_on", new Date(Date.UTC(Number(sp.maand.slice(0, 4)), Number(sp.maand.slice(5, 7)), 1)).toISOString().slice(0, 10));
   const { data: all } = await q;
   const list = (all ?? []).filter((i) => !sp.status || shownStatus(i) === sp.status);
@@ -86,7 +98,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
   return (
     <>
       <AdminNav active="facturen" />
-      <h1 className="ph">Facturen</h1>
+      <h1 className="ph">Facturen <Link href="/beheer/admin/octopus" className="pill" style={{ fontSize: 13, verticalAlign: "middle" }}>Octopus{octopusEnabled() ? "" : " (uit)"}</Link></h1>
       {sp.gemaakt && <div className="okmsg">{sp.gemaakt === "0" ? "Geen nieuwe maandfacturen: alles voor deze maand is al gefactureerd." : `${sp.gemaakt} maandfacturen gemaakt.`}</div>}
       {sp.fout && <div className="alert">Kies een geldige maand.</div>}
       <div className="sgrid">
@@ -122,7 +134,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
                 <td><Link href={`/beheer/admin/bedrijf/${co?.id}`}>{co?.legal_name}</Link><div className="muted small">{i.period ? periodLabel(i.period) : "eenmalig"}</div></td>
                 <td>{shortDate(i.issued_on)}<div className="muted small">verv. {shortDate(i.due_on)}</div></td>
                 <td>{eur(i.total_cents)}</td>
-                <td><span className={`pill ${STATUS[st]?.[1]}`}>{STATUS[st]?.[0]}</span><div className="muted small">{PEPPOL[i.peppol_status] ?? i.peppol_status}</div></td>
+                <td><span className={`pill ${STATUS[st]?.[1]}`}>{STATUS[st]?.[0]}</span><div className="muted small">{PEPPOL[i.peppol_status] ?? i.peppol_status}</div>
+                  {octopusEnabled() && i.status === "betaald" && <div className="small" title={i.octopus_error ?? ""} style={{ color: i.octopus_status === "fout" ? "var(--ketchup)" : undefined }}>Octopus: {OCTO[i.octopus_status ?? ""] ?? "wacht"}{i.octopus_doc ? ` · ${i.octopus_doc}` : ""}
+                    {(!i.octopus_status || ["fout", "aangemaakt", "test_niet_verstuurd"].includes(i.octopus_status)) && <form action={octoRetry} style={{ display: "inline" }}><input type="hidden" name="id" value={i.id} /> <button className="s-link small" style={{ padding: 0 }}>opnieuw</button></form>}
+                    {i.octopus_error && <div className="muted">{i.octopus_error.slice(0, 120)}</div>}</div>}</td>
                 <td>
                   <form action={setStatus} className="rowform">
                     <input type="hidden" name="id" value={i.id} /><input type="hidden" name="f_status" value={sp.status ?? ""} /><input type="hidden" name="f_maand" value={sp.maand ?? ""} />

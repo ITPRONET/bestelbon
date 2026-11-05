@@ -86,7 +86,11 @@ export async function syncPayment(paymentId: string) {
     upd.status = "betaald"; upd.paid_at = new Date().toISOString(); upd.payment_method = p.sequenceType === "recurring" ? "domiciliëring" : `online (${p.method ?? "Mollie"})`;
   }
   await db.from("invoices").update(upd).eq("id", inv.id);
-  if (p.status === "paid") await unblockIfPaid(inv.company_id);
+  if (p.status === "paid") {
+    await unblockIfPaid(inv.company_id);
+    // Betaald: factuur naar Octopus (klant aanmaken, boeken, versturen via Peppol of e-mail).
+    await import("./octopus").then((o) => o.syncInvoiceToOctopus(inv.id)).catch((e) => console.error("octopus", e));
+  }
   if (p.mandateId && p.customerId) {
     const m = await api<Mandate>(`/customers/${p.customerId}/mandates/${p.mandateId}`);
     await db.from("companies").update({ mollie_mandate_id: m.id, mandate_status: m.status, mandate_label: mandateLabel(m) }).eq("id", inv.company_id);
