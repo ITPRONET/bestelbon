@@ -215,6 +215,7 @@ input[type=color]{height:42px;padding:3px}
 .s-seg{display:grid;grid-template-columns:1fr 1fr;background:var(--bg);border-radius:12px;padding:4px;gap:4px}
 .s-seg button{border:0;background:transparent;border-radius:9px;padding:11px 8px;font-weight:700;font-size:16px;color:var(--muted)}
 .s-seg button[aria-selected="true"]{background:#fff;color:var(--text);box-shadow:0 1px 4px #0b103326}
+.s-only{margin:0 4px;font-weight:800;font-size:15px}
 .s-meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px;color:var(--muted);padding:0 4px}
 .s-open{font-weight:700;color:#b42318}
 .s-open.on{color:#0b6b51}

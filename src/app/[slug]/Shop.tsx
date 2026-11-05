@@ -17,7 +17,9 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
   const router = useRouter();
   const items = useMemo(() => new Map(categories.flatMap((c) => c.menu_items).map((i) => [i.id, i])), [categories]);
   const [cart, setCart] = useState<Line[]>([]);
-  const [mode, setMode] = useState<Mode>("levering");
+  const canDel = r.offers_delivery !== false, canPick = r.offers_pickup !== false, both = canDel && canPick;
+  const mustPay = !!online && !!r.online_required; // zaak wil dat online bestellingen meteen betaald worden
+  const [mode, setMode] = useState<Mode>(canDel ? "levering" : "afhalen");
   const [pay, setPay] = useState<"online" | "cash">(online ? "online" : "cash");
   const CART_KEY = `bb_cart_${r.slug}`;
   const [sheet, setSheetState] = useState<Sheet>(null);
@@ -30,7 +32,7 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
   useEffect(() => {
     try {
       const q = new URLSearchParams(location.search);
-      if (q.get("modus") === "afhalen") setMode("afhalen");
+      if (q.get("modus") === "afhalen" && canPick) setMode("afhalen");
       const pc = localStorage.getItem("bb_pc");
       if (pc && /^\d{4}$/.test(pc)) setF((x) => (x.postcode ? x : { ...x, postcode: pc }));
     } catch { /* ignore */ }
@@ -101,7 +103,7 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
     setBusy(true); setError("");
     const res = await fetch("/api/orders", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slug: r.slug, mode, payment: online ? pay : "cash", ...f, lines: cart.map(({ itemId, choiceIds, qty }) => ({ itemId, choiceIds, qty })) }),
+      body: JSON.stringify({ slug: r.slug, mode, payment: mustPay ? "online" : online ? pay : "cash", ...f, lines: cart.map(({ itemId, choiceIds, qty }) => ({ itemId, choiceIds, qty })) }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { setError(data.error ?? "Er ging iets mis. Probeer opnieuw."); setBusy(false); return; }
@@ -152,10 +154,12 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
 
       <div className="wrap">
         <div className="s-card s-mode">
-          <div className="s-seg" role="tablist" aria-label="Levering of afhalen">
-            <button role="tab" aria-selected={mode === "levering"} onClick={() => setMode("levering")}>Levering</button>
-            <button role="tab" aria-selected={mode === "afhalen"} onClick={() => setMode("afhalen")}>Afhalen</button>
-          </div>
+          {both ? (
+            <div className="s-seg" role="tablist" aria-label="Levering of afhalen">
+              <button role="tab" aria-selected={mode === "levering"} onClick={() => setMode("levering")}>Levering</button>
+              <button role="tab" aria-selected={mode === "afhalen"} onClick={() => setMode("afhalen")}>Afhalen</button>
+            </div>
+          ) : <p className="s-only">{canDel ? "Enkel levering" : "Enkel afhalen, geen levering"}</p>}
           <div className="s-meta">
             {st && !st.always && <span className={`s-open ${st.open ? "on" : ""}`}>{st.label}</span>}
             <span>± {eta} min</span>
@@ -240,7 +244,7 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
               <p className="small"><b>Verkoper</b><br />{trader.legal_name}<br />{[trader.street, [trader.postcode, trader.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")}{trader.street || trader.city ? <br /> : null}Btw {trader.vat_number}
                 {trader.email && <><br /><a href={`mailto:${trader.email}`}>{trader.email}</a></>}{trader.phone && <><br /><a href={`tel:${trader.phone.replace(/\s/g, "")}`}>{trader.phone}</a></>}</p>
             )}
-            <p className="muted small">{online ? "Online betalen of betalen bij levering of afhaling." : "Betalen bij levering of afhaling."} Je koopt rechtstreeks bij deze zaak; BestelBon levert enkel de bestelsoftware. <Link href="/privacy">Privacy</Link></p>
+            <p className="muted small">{mustPay ? "Je betaalt online bij het bestellen." : online ? `Online betalen of betalen bij ${both ? "levering of afhaling" : canDel ? "levering" : "afhaling"}.` : `Betalen bij ${both ? "levering of afhaling" : canDel ? "levering" : "afhaling"}.`} Je koopt rechtstreeks bij deze zaak; BestelBon levert enkel de bestelsoftware. <Link href="/privacy">Privacy</Link></p>
           </div>
         </SheetFrame>
       )}
@@ -250,7 +254,7 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
             <>
               {error && <p className="err" role="alert" style={{ margin: "0 0 8px" }}>{error}</p>}
               <button className="s-cta" disabled={!cart.length || short > 0 || outZone || busy || !canOrder} onClick={order}>
-                {busy ? "Bezig…" : !canOrder ? "Nu gesloten" : short > 0 ? `Nog ${eur(short)} tot het minimum` : online && pay === "online" ? `Bestellen en betalen · ${eur(sub + fee)}` : `Bestelling plaatsen · ${eur(sub + fee)}`}
+                {busy ? "Bezig…" : !canOrder ? "Nu gesloten" : short > 0 ? `Nog ${eur(short)} tot het minimum` : online && (mustPay || pay === "online") ? `Bestellen en betalen · ${eur(sub + fee)}` : `Bestelling plaatsen · ${eur(sub + fee)}`}
               </button>
             </>
           }>
@@ -258,10 +262,10 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
             {cart.length ? <CartLines cart={cart} items={items} unit={unit} change={change} /> : <p className="muted">Je bestelling is leeg.</p>}
             <button className="s-link" onClick={() => setSheet(null)}>+ Nog iets toevoegen</button>
 
-            <div className="s-seg">
+            {both && <div className="s-seg">
               <button aria-selected={mode === "levering"} onClick={() => setMode("levering")}>Levering</button>
               <button aria-selected={mode === "afhalen"} onClick={() => setMode("afhalen")}>Afhalen</button>
-            </div>
+            </div>}
             {canOrder && !(slots.length === 1 && slots[0] === "Zo snel mogelijk") && (
               <label className="s-field">{mode === "levering" ? "Wanneer leveren?" : "Wanneer afhalen?"}
                 <select value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })}>{slots.map((s) => <option key={s}>{s}</option>)}</select>
@@ -285,11 +289,11 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
 
             {online && <>
               <h3>Betalen</h3>
-              <div className="s-seg">
+              {!mustPay && <div className="s-seg">
                 <button aria-selected={pay === "online"} onClick={() => setPay("online")}>Online betalen</button>
                 <button aria-selected={pay === "cash"} onClick={() => setPay("cash")}>{mode === "levering" ? "Bij levering" : "Bij afhaling"}</button>
-              </div>
-              {pay === "online" && <p className="muted small" style={{ margin: 0 }}>Bancontact, kaart of Apple Pay via Mollie. Je betaalt rechtstreeks aan {r.name}.</p>}
+              </div>}
+              {(mustPay || pay === "online") && <p className="muted small" style={{ margin: 0 }}>Bancontact, kaart of Apple Pay via Mollie. Je betaalt rechtstreeks aan {r.name}.</p>}
             </>}
 
             <div className="s-sum">
@@ -297,7 +301,7 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
               {mode === "levering" && <div className="s-row"><span>Leverkost</span><span className="num">{fee ? eur(fee) : "gratis"}</span></div>}
               <div className="s-row s-total"><span>Totaal</span><span className="num">{eur(sub + fee)}</span></div>
               {short > 0 && <MinBar short={short} min={minOrder} sub={sub} />}
-              <p className="muted small" style={{ margin: 0 }}>{online && pay === "online" ? "Je bestelling gaat naar de zaak zodra je betaling gelukt is." : `Je betaalt bij ${mode === "levering" ? "levering" : "afhaling"}.`} Je gegevens dienen alleen voor deze bestelling en worden na 30 dagen gewist.</p>
+              <p className="muted small" style={{ margin: 0 }}>{online && (mustPay || pay === "online") ? "Je bestelling gaat naar de zaak zodra je betaling gelukt is." : `Je betaalt bij ${mode === "levering" ? "levering" : "afhaling"}.`} Je gegevens dienen alleen voor deze bestelling en worden na 30 dagen gewist.</p>
             </div>
           </div>
         </SheetFrame>

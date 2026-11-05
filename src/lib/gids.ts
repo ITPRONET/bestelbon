@@ -21,7 +21,7 @@ const NO_ZONES_DELIVERY_KM = 5;
 
 export type GidsZaak = {
   slug: string; name: string; type: string; city: string | null; logo: string | null; accent: string;
-  km: number | null; delivers: boolean; fee: number; min: number; eta: number;
+  km: number | null; delivers: boolean; pickup: boolean; fee: number; min: number; eta: number;
   state: "open" | "later" | "dicht"; label: string;
 };
 
@@ -34,7 +34,7 @@ export async function gidsFor(pc: string) {
   const here = pcInfo(pc);
   if (!here) return null;
   const { data } = await adminDb().from("restaurants")
-    .select("slug, name, type, city, postcode, logo_path, brand_accent, delivery_fee_cents, min_order_cents, prep_minutes, is_open, companies!inner ( status, plan, blocked_at ), opening_hours ( weekday, opens, closes ), delivery_zones ( postcode, fee_cents, min_order_cents )")
+    .select("slug, name, type, city, postcode, logo_path, brand_accent, delivery_fee_cents, min_order_cents, prep_minutes, is_open, offers_delivery, offers_pickup, companies!inner ( status, plan, blocked_at ), opening_hours ( weekday, opens, closes ), delivery_zones ( postcode, fee_cents, min_order_cents )")
     .eq("in_gids", true).in("companies.status", ["actief", "achterstallig"]).is("companies.blocked_at", null);
   const now = weekMinute();
   const list: GidsZaak[] = [];
@@ -44,8 +44,9 @@ export async function gidsFor(pc: string) {
     const at = r.postcode ? pcInfo(r.postcode) : null;
     const dist = at ? km(here, at) : null;
     const zone = zones.find((z) => z.postcode === pc);
-    const delivers = zones.length ? !!zone : dist !== null && dist <= NO_ZONES_DELIVERY_KM;
-    if (!delivers && (dist === null || dist > PICKUP_KM)) continue;
+    const delivers = r.offers_delivery !== false && (zones.length ? !!zone : dist !== null && dist <= NO_ZONES_DELIVERY_KM);
+    const pickup = r.offers_pickup !== false && dist !== null && dist <= PICKUP_KM;
+    if (!delivers && !pickup) continue;
     const st = openState((r.opening_hours ?? []) as HourRow[], now);
     const state: GidsZaak["state"] = !r.is_open ? "dicht" : st.open ? "open" : st.preorder ? "later" : "dicht";
     list.push({
@@ -53,14 +54,14 @@ export async function gidsFor(pc: string) {
       logo: co.plan === "pro" && r.logo_path ? r.logo_path : null,
       km: dist === null ? null : Math.round(dist * 10) / 10, delivers,
       fee: zone?.fee_cents ?? r.delivery_fee_cents, min: zone?.min_order_cents ?? r.min_order_cents,
-      eta: r.prep_minutes + (delivers ? 15 : 0),
+      eta: r.prep_minutes + (delivers ? 15 : 0), pickup,
       state, label: !r.is_open ? "Neemt nu geen online bestellingen aan" : st.always ? "Open" : st.label,
     });
   }
   // Volgorde: eerst open, dan vooraf bestellen, dan gesloten; binnen elke groep op afstand. Niemand betaalt voor een hogere plaats.
   const rank = { open: 0, later: 1, dicht: 2 };
   list.sort((a, b) => rank[a.state] - rank[b.state] || (a.km ?? 99) - (b.km ?? 99) || a.name.localeCompare(b.name));
-  return { here: { pc, ...here }, levering: list.filter((z) => z.delivers), afhalen: list.filter((z) => !z.delivers || (z.km !== null && z.km <= PICKUP_KM)) };
+  return { here: { pc, ...here }, levering: list.filter((z) => z.delivers), afhalen: list.filter((z) => z.pickup) };
 }
 
 /** Until the guide is switched on, only the platform admin sees it. */

@@ -25,6 +25,9 @@ async function saveZaak(f: FormData) {
     delivery_fee_cents: fee ?? 0, min_order_cents: min ?? 0, prep_minutes: prep,
     is_open: f.get("is_open") === "on", paused_reason: f.get("is_open") === "on" ? null : "handmatig",
     in_gids: f.get("in_gids") === "on",
+    // Minstens één manier: wie niets aanvinkt, houdt afhalen.
+    offers_delivery: f.get("offers_delivery") === "on",
+    offers_pickup: f.get("offers_pickup") === "on" || f.get("offers_delivery") !== "on",
   }).eq("id", s(f, "rid")).select("slug").single();
   if (data) revalidatePath(`/${data.slug}`);
   redirect(`/beheer/instellingen?zaak=${data?.slug ?? ""}&ok=1`);
@@ -148,7 +151,8 @@ async function savePay(f: FormData) {
   const m = await myRestaurant(s(f, "rid"));
   if (!m) redirect("/beheer/instellingen");
   const { data: a } = await adminDb().from("payment_accounts").select("profile_id").eq("restaurant_id", m.r.id).maybeSingle();
-  await m.db.from("restaurants").update({ online_payments: !!a?.profile_id && f.get("online_payments") === "on" }).eq("id", m.r.id);
+  const on = !!a?.profile_id && f.get("online_payments") === "on";
+  await m.db.from("restaurants").update({ online_payments: on, online_required: on && f.get("online_required") === "on" }).eq("id", m.r.id);
   revalidatePath(`/${m.r.slug}`);
   redirect(`/beheer/instellingen?zaak=${m.r.slug}&ok=1#betalen`);
 }
@@ -213,7 +217,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
             <label className="field">Postcode<input name="postcode" defaultValue={r.postcode ?? ""} /></label>
             <label className="field">Gemeente<input name="city" defaultValue={r.city ?? ""} /></label>
           </div>
-          <h2 className="h2" style={{ marginTop: 8 }}>Levering</h2>
+          <h2 className="h2" style={{ marginTop: 8 }}>Levering en afhalen</h2>
+          <label className="check"><input type="checkbox" name="offers_delivery" defaultChecked={r.offers_delivery !== false} /> Wij leveren aan huis</label>
+          <label className="check"><input type="checkbox" name="offers_pickup" defaultChecked={r.offers_pickup !== false} /> Klanten kunnen afhalen</label>
+          <p className="muted small" style={{ margin: 0 }}>Geen levering (bv. broodjeszaak)? Vink &quot;Wij leveren aan huis&quot; uit: klanten zien dan enkel afhalen. Leverkost en minimum gelden alleen voor levering.</p>
           <div className="fgrid">
             <label className="field">Leverkost (€)<input name="fee" defaultValue={fromCents(r.delivery_fee_cents)} inputMode="decimal" /></label>
             <label className="field">Minimum voor levering (€)<input name="min" defaultValue={fromCents(r.min_order_cents)} inputMode="decimal" /></label>
@@ -271,6 +278,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
             <form action={savePay} style={{ display: "grid", gap: 10 }}>
               <input type="hidden" name="rid" value={current.id} />
               <label className="check big"><input type="checkbox" name="online_payments" defaultChecked={r.online_payments} disabled={!pay.profile_id} /> Klanten kunnen online betalen</label>
+              <label className="check"><input type="checkbox" name="online_required" defaultChecked={r.online_required} disabled={!pay.profile_id} /> Online bestellingen moeten meteen online betaald worden (geen betalen bij levering of afhaling)</label>
+              <p className="muted small" style={{ margin: 0 }}>Zonder dit vinkje kiest de klant zelf: online betalen of bij levering/afhaling. Werkt Mollie tijdelijk niet, dan kan de klant toch bij levering of afhaling betalen, zodat je geen bestellingen mist.</p>
               <div><button className="btn btn-primary">Opslaan</button></div>
             </form>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
