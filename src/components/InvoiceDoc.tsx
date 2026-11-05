@@ -1,7 +1,8 @@
 import { eur } from "@/lib/money";
 import { type Buyer, type Invoice, type Line, type Seller, shortDate, shownStatus, STATUS } from "@/lib/invoice";
 
-export default function InvoiceDoc({ inv, lines, buyer, s }: { inv: Invoice; lines: Line[]; buyer: Buyer; s: Seller }) {
+/** request=true: betaalverzoek (de echte factuur komt na betaling uit Octopus, via Peppol of e-mail). */
+export default function InvoiceDoc({ inv, lines, buyer, s, request = false }: { inv: Invoice; lines: Line[]; buyer: Buyer; s: Seller; request?: boolean }) {
   const st = shownStatus(inv);
   return (
     <article className="invoice">
@@ -11,7 +12,7 @@ export default function InvoiceDoc({ inv, lines, buyer, s }: { inv: Invoice; lin
           <div className="small">{s.name}<br />{s.street}<br />{s.postcode} {s.city}<br />BTW {s.vat || "—"}<br />{s.email}</div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <h1>Factuur</h1>
+          <h1>{request ? "Betaalverzoek" : "Factuur"}</h1>
           <table className="inv-meta"><tbody>
             <tr><th>Nummer</th><td>{inv.number}</td></tr>
             <tr><th>Datum</th><td>{shortDate(inv.issued_on)}</td></tr>
@@ -21,7 +22,7 @@ export default function InvoiceDoc({ inv, lines, buyer, s }: { inv: Invoice; lin
         </div>
       </header>
       <section className="inv-to">
-        <div className="muted small">Factuur aan</div>
+        <div className="muted small">{request ? "Aan" : "Factuur aan"}</div>
         <b>{buyer.legal_name}</b>
         <div className="small">{buyer.contact_name && <>t.a.v. {buyer.contact_name}<br /></>}{buyer.street}<br />{buyer.postcode} {buyer.city}<br />BTW {buyer.vat_number}</div>
       </section>
@@ -38,10 +39,11 @@ export default function InvoiceDoc({ inv, lines, buyer, s }: { inv: Invoice; lin
       </table>
       {inv.note && <p className="small">{inv.note}</p>}
       {st === "betaald" ? (
-        <p className="inv-pay">Betaald{inv.paid_at ? ` op ${shortDate(inv.paid_at.slice(0, 10))}` : ""}{inv.payment_method ? ` (${inv.payment_method})` : ""}. Bedankt!</p>
+        <p className="inv-pay">Betaald{inv.paid_at ? ` op ${shortDate(inv.paid_at.slice(0, 10))}` : ""}{inv.payment_method ? ` (${inv.payment_method})` : ""}. Bedankt!{request ? " Je factuur ontvang je via Peppol of per e-mail." : ""}</p>
       ) : st !== "gecrediteerd" && (
         <p className="inv-pay">Gelieve <b>{eur(inv.total_cents)}</b> te betalen voor {shortDate(inv.due_on)} op rekening <b>{s.iban || "—"}</b>{s.bic ? ` (BIC ${s.bic})` : ""} met gestructureerde mededeling <b className="mono">{inv.ogm}</b>.</p>
       )}
+      {request && <p className="small muted">Dit is een betaalverzoek, geen factuur. Na betaling ontvang je de factuur van {s.name || "ITPRONET"} via Peppol (in je boekhoudpakket) of per e-mail.</p>}
       <footer className="inv-foot small muted">{s.name} · BTW {s.vat} · {s.iban} · {s.email} · bestelbon.eu</footer>
     </article>
   );

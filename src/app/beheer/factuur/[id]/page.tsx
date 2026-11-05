@@ -4,9 +4,10 @@ import InvoiceDoc from "@/components/InvoiceDoc";
 import PrintButton from "@/components/PrintButton";
 import { panel } from "@/lib/panel";
 import { seller, type Buyer, type Invoice, type Line } from "@/lib/invoice";
+import { octopusEnabled } from "@/lib/octopus";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Factuur" };
+export const metadata = { title: "Betaalverzoek" };
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -18,14 +19,15 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     db.from("companies").select("legal_name, vat_number, street, postcode, city, contact_name, email").eq("id", inv.company_id).single(),
     seller(),
   ]);
+  const request = octopusEnabled();
   return (
     <>
       <div className="noprint" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <Link className="btn" href={isAdmin ? `/beheer/admin/bedrijf/${inv.company_id}` : "/beheer/facturen"}>← Terug</Link>
         <PrintButton label="Download PDF / afdrukken" />
-        <a className="btn" href={`/beheer/factuur/${id}/ubl`}>Peppol-bestand (UBL)</a>
+        {!request && <a className="btn" href={`/beheer/factuur/${id}/ubl`}>Peppol-bestand (UBL)</a>}
       </div>
-      <InvoiceDoc inv={inv as Invoice} lines={(lines ?? []) as Line[]} buyer={buyer as Buyer} s={s} />
+      <InvoiceDoc inv={inv as Invoice} lines={(lines ?? []) as Line[]} buyer={buyer as Buyer} s={s} request={request} />
     </>
   );
 }

@@ -84,7 +84,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
         <section className="panel" style={{ display: "grid", gap: 6 }}>
           <h2 className="h2">Betaling</h2>
           {mandate
-            ? <><p style={{ margin: 0 }}><span className="pill ok">Actief</span> {co.mandate_label ?? "Domiciliëring"}. Je {co.billing === "jaar" ? "jaarfactuur" : "maandfactuur"} wordt automatisch afgeschreven, {CHARGE_AFTER_DAYS} dagen na de factuurdatum. De factuur geldt als vooraankondiging. Stoppen kan via info@bestelbon.eu.</p></>
+            ? <><p style={{ margin: 0 }}><span className="pill ok">Actief</span> {co.mandate_label ?? "Domiciliëring"}. Je {co.billing === "jaar" ? "jaarfactuur" : "maandfactuur"} wordt automatisch afgeschreven, {CHARGE_AFTER_DAYS} dagen na de factuurdatum. Het betaalverzoek geldt als vooraankondiging. Stoppen kan via info@bestelbon.eu.</p></>
             : <p style={{ margin: 0 }}>Betaal je openstaande factuur online met Bancontact, kaart of je bankapp.</p>}
           {payable.map((i) => (
             // Eén formulier per factuur: de knop-waarde (name/value) komt niet mee in een server action.
@@ -94,7 +94,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
               {!mandate && <>
                 <label className="check" style={{ alignItems: "flex-start", fontWeight: 400 }}>
                   <input type="checkbox" name="mandaat" style={{ marginTop: 4 }} />
-                  <span>Ik machtig {sel.name || "ITPRONET"} om mijn volgende BestelBon-{co.billing === "jaar" ? "jaarfacturen" : "maandfacturen"} automatisch af te schrijven via Mollie (SEPA-domiciliëring of kaart), ten vroegste {CHARGE_AFTER_DAYS} dagen na de factuurdatum. De factuur geldt als vooraankondiging. Ik kan dit altijd stoppen via info@bestelbon.eu.</span>
+                  <span>Ik machtig {sel.name || "ITPRONET"} om mijn volgende BestelBon-{co.billing === "jaar" ? "jaarfacturen" : "maandfacturen"} automatisch af te schrijven via Mollie (SEPA-domiciliëring of kaart), ten vroegste {CHARGE_AFTER_DAYS} dagen na de factuurdatum. Het betaalverzoek geldt als vooraankondiging. Ik kan dit altijd stoppen via info@bestelbon.eu.</span>
                 </label>
                 <p className="muted small" style={{ margin: 0 }}>Niet aangevinkt? Dan betaal je enkel deze factuur online en betaal je volgende facturen zelf.</p>
               </>}
@@ -143,7 +143,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
             <label className="field">E-mail voor facturen<input name="email" type="email" defaultValue={co.email} required /></label>
             <label className="field">Telefoon<input name="phone" defaultValue={co.phone ?? ""} /></label>
           </div>
-          <p className="muted small" style={{ margin: 0 }}>Facturen gaan via Peppol naar je boekhoudpakket of per e-mail naar dit adres.</p>
+          <p className="muted small" style={{ margin: 0 }}>Hieronder staan je betaalverzoeken. Na betaling ontvang je de factuur via Peppol in je boekhoudpakket, of per e-mail op dit adres als je geen Peppol hebt.</p>
           <div><button className="btn btn-primary">Opslaan</button></div>
         </form>
       </div>

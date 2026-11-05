@@ -43,7 +43,7 @@ export async function payOnline(invoiceId: string, back: string, mandate: boolea
   const p = await api<Payment>("/payments", {
     method: "POST",
     body: JSON.stringify({
-      amount: amount(inv.total_cents), description: `BestelBon factuur ${inv.number}`, customerId, sequenceType: mandate ? "first" : "oneoff",
+      amount: amount(inv.total_cents), description: `BestelBon ${inv.number}`, customerId, sequenceType: mandate ? "first" : "oneoff",
       redirectUrl: back, webhookUrl: `${siteUrl()}/api/mollie/billing`, locale: "nl_BE", metadata: { invoice_id: inv.id },
     }),
   });
@@ -60,7 +60,7 @@ export async function charge(invoiceId: string) {
   const p = await api<Payment>("/payments", {
     method: "POST",
     body: JSON.stringify({
-      amount: amount(inv.total_cents), description: `BestelBon factuur ${inv.number}`, customerId: c.mollie_customer_id, mandateId: c.mollie_mandate_id,
+      amount: amount(inv.total_cents), description: `BestelBon ${inv.number}`, customerId: c.mollie_customer_id, mandateId: c.mollie_mandate_id,
       sequenceType: "recurring", webhookUrl: `${siteUrl()}/api/mollie/billing`, metadata: { invoice_id: inv.id },
     }),
   });
