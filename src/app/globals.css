@@ -560,11 +560,12 @@ dialog.uitleg video{display:block;width:100%;height:auto;background:#000}
 .layout-raster .s-items{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .layout-raster .s-item{flex-direction:column-reverse;align-items:stretch;padding:0;overflow:hidden;min-height:0;position:relative}
 .layout-raster .s-item-t{padding:10px 12px 12px}
-.layout-raster .s-img{width:100%;height:auto;aspect-ratio:4/3}
-.layout-raster .s-img img{border-radius:0}
+.layout-raster .s-items{align-items:start}
+.layout-raster .s-img{width:100%;height:0;padding-bottom:75%;flex:none}
+.layout-raster .s-img img{position:absolute;inset:0;border-radius:0}
 .layout-raster .s-img .s-plus{right:8px;bottom:8px}
 .layout-raster .s-item>.s-plus{position:absolute;right:10px;top:10px;width:36px;height:36px;font-size:22px}
-.layout-raster .s-item:not(:has(.s-img)) .s-item-t{padding-right:54px;min-height:96px}
+.layout-raster .s-item:not(:has(.s-img)) .s-item-t{padding-right:54px}
 @media (min-width:900px){.layout-raster .s-items{grid-template-columns:repeat(3,minmax(0,1fr))}}
 
 /* Pro: menuweergave menukaart */
