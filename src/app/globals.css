@@ -574,7 +574,10 @@ dialog.uitleg video{display:block;width:100%;height:auto;background:#000}
 .layout-kaart .s-items{gap:0}
 .layout-kaart .s-item{box-shadow:none;border-radius:10px;padding:9px 4px;min-height:0;border:0;border-bottom:1px dashed #d9dbe8;gap:10px}
 .layout-kaart .s-item:last-child{border-bottom:0}
-.layout-kaart .s-img{display:none}
+.layout-kaart .s-img{width:auto;height:auto}
+.layout-kaart .s-img img{display:none}
+.layout-kaart .s-img .s-plus{position:static;border:0}
+.layout-kaart .s-cat{margin-bottom:14px}
 .layout-kaart .s-item-t{grid-template-columns:1fr auto;column-gap:10px;align-items:baseline}
 .layout-kaart .s-item-t b{font-size:16px;font-weight:700}
 .layout-kaart .s-item-t small,.layout-kaart .s-alg{grid-column:1/-1}
