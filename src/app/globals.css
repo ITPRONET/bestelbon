@@ -613,3 +613,27 @@ dialog.uitleg video{display:block;width:100%;height:auto;background:#000}
 .lo-raster .lo-prev i{background:linear-gradient(180deg,#ffd9c2 60%,#fff 60%)}
 .lo-kaart .lo-prev{gap:0;padding:8px 10px}
 .lo-kaart .lo-prev i{box-shadow:none;border-radius:0;background:none;border-bottom:1px dashed #b9bdd6}
+
+/* Klantenkaart in het afrekenscherm */
+.s-kaart{display:grid;gap:10px;border:1.5px dashed color-mix(in srgb,var(--accent) 55%,#fff);border-radius:14px;padding:12px 14px;background:color-mix(in srgb,var(--accent) 5%,#fff)}
+.s-kaart-join{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.s-kaart-join input{width:20px;height:20px;margin:2px 0 0;accent-color:var(--accent);flex:none}
+.s-kaart-join span{display:grid;gap:2px}
+.s-kaart-join b{font-size:15px}
+.s-kaart small{font-size:13px;color:var(--muted);line-height:1.35}
+.s-kaart small.ok{color:#0d7a3a;font-weight:600}
+.s-kaart small.err{color:#b42318}
+.s-kaart-stand{display:grid;gap:8px;padding-left:30px}
+.s-dots{display:flex;flex-wrap:wrap;gap:5px}
+.s-dots i{width:20px;height:20px;border-radius:50%;border:2px solid var(--accent);background:#fff}
+.s-dots i.on{background:var(--accent)}
+.s-kaart-btn{justify-self:start;font:inherit;font-weight:700;font-size:15px;border:0;border-radius:999px;padding:10px 16px;background:var(--accent);color:#fff;cursor:pointer}
+.s-kaart-btn:disabled{opacity:.6}
+.s-kaart-code{display:grid;gap:6px}
+.s-kaart-code input{font:inherit;font-size:22px;letter-spacing:.3em;font-weight:700;width:170px;padding:8px 12px;border:1.5px solid #d9dbe8;border-radius:10px}
+.kaart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.kaart-reward{border:1px solid #e4e6f0;border-radius:12px;padding:10px 14px 12px;margin:0;display:grid;gap:10px}
+.kaart-reward legend{padding:0 6px}
+.kaart-opt{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.kaart-opt select{max-width:100%;flex:1 1 220px}
+.kaart-stats{margin-bottom:16px}.kaart-stats .kpis{margin:0}.kaart-stats .kpi{box-shadow:none;background:var(--bg,#f4f5fb)}

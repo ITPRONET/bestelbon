@@ -4,6 +4,7 @@ import { z } from "zod";
 import { adminDb } from "@/lib/supabase";
 import { queueTickets } from "@/lib/print-jobs";
 import { createPayment, onlineReady, siteUrl } from "@/lib/mollie";
+import { checkRewardCode, findCard, loyaltyRestaurant, phoneKey, rewardDiscount, undoRedeem } from "@/lib/loyalty";
 import { cleanPostcode, findZone, openState, timeSlots, weekMinute } from "@/lib/hours";
 
 export const runtime = "nodejs";
@@ -20,6 +21,7 @@ const Body = z.object({
   postcode: z.string().trim().max(10).optional(),
   city: z.string().trim().max(60).optional(),
   note: z.string().trim().max(200).optional(),
+  loyalty: z.object({ join: z.boolean(), redeem: z.boolean().default(false), code: z.string().trim().max(8).optional() }).optional(),
   lines: z.array(z.object({ itemId: z.string().uuid(), choiceIds: z.array(z.string().uuid()).max(60), qty: z.number().int().min(1).max(50) })).min(1).max(40),
 });
 
@@ -44,7 +46,7 @@ export async function POST(req: Request) {
   if (!r || !r.is_open || (r.companies as unknown as { blocked_at: string | null } | null)?.blocked_at) return NextResponse.json({ error: "Deze zaak neemt nu geen online bestellingen aan." }, { status: 409 });
   if (b.mode === "levering" && r.offers_delivery === false) return NextResponse.json({ error: "Deze zaak levert niet. Kies afhalen." }, { status: 400 });
   if (b.mode === "afhalen" && r.offers_pickup === false) return NextResponse.json({ error: "Bij deze zaak kun je niet afhalen. Kies levering." }, { status: 400 });
-  const online = b.payment === "online";
+  let online = b.payment === "online";
   const ready = online || r.online_required ? await onlineReady(r.id) : false;
   if (online && !ready) return NextResponse.json({ error: "Online betalen is bij deze zaak nu niet mogelijk. Kies betalen bij levering of afhaling." }, { status: 409 });
   // Zaak vraagt vooraf online betalen (zolang Mollie werkt; anders blijft betalen bij levering/afhaling mogelijk).
@@ -94,7 +96,7 @@ export async function POST(req: Request) {
     ...i, option_groups: [...((catGroups ?? []) as (G & { category_id: string })[]).filter((g) => g.category_id === i.category_id).sort(byPos), ...i.option_groups.sort(byPos)],
   }]));
 
-  const lines: { item_id: string; item_name: string; options: string[]; unit_cents: number; qty: number }[] = [];
+  const lines: { item_id: string | null; item_name: string; options: string[]; unit_cents: number; qty: number }[] = [];
   for (const l of b.lines) {
     const it = byId.get(l.itemId);
     if (!it || !it.available) return NextResponse.json({ error: "Een gerecht is niet meer beschikbaar. Vernieuw de pagina." }, { status: 409 });
@@ -115,10 +117,33 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Het minimum voor levering is nog niet bereikt." }, { status: 400 });
   }
 
+  // Klantenkaart (Pro): stempels sparen en eventueel de beloning gebruiken.
+  let discount = 0, cardId: string | null = null, redeem = false;
+  const lr = b.loyalty?.join ? await loyaltyRestaurant(b.slug) : null;
+  if (lr) {
+    const card = await findCard(lr.id, b.phone, b.email);
+    if (b.loyalty?.redeem) {
+      if (!card || card.stamps < lr.loyalty_stamps) return NextResponse.json({ error: "Je klantenkaart is nog niet vol." }, { status: 400 });
+      if (!b.loyalty.code || !(await checkRewardCode(card, b.loyalty.code))) return NextResponse.json({ error: "De code klopt niet of is verlopen. Vraag een nieuwe code aan." }, { status: 400 });
+      if (lr.loyalty_reward === "product") {
+        if (!lr.itemAvailable || !lr.loyalty_item_id) return NextResponse.json({ error: "Je beloning is nu niet beschikbaar. Probeer later opnieuw." }, { status: 409 });
+        lines.push({ item_id: lr.loyalty_item_id, item_name: lr.itemName ?? "Beloning", options: ["GRATIS - klantenkaart"], unit_cents: 0, qty: 1 });
+      } else discount = rewardDiscount(lr, subtotal);
+      redeem = true;
+    }
+    if (!card) {
+      const { data: nc } = await db.from("loyalty_cards").upsert({ restaurant_id: lr.id, phone_key: phoneKey(b.phone), email: b.email.toLowerCase(), name: b.name }, { onConflict: "restaurant_id,phone_key", ignoreDuplicates: true }).select("id").maybeSingle();
+      if (nc) cardId = nc.id;
+    }
+    if (card) cardId = card.id;
+  }
+  const total = subtotal + fee - discount;
+  if (total === 0) online = false; // niets te betalen
+
   const { data: order, error } = await db.from("orders").insert({
     restaurant_id: r.id, business_day: new Date().toISOString().slice(0, 10), day_number: 0, // trigger zet de echte waarden
     mode: b.mode, requested_time: b.time, status: online ? "wacht_op_betaling" : "in_wachtrij", payment_method: online ? "online" : "cash", payment_status: "open",
-    subtotal_cents: subtotal, delivery_fee_cents: fee, total_cents: subtotal + fee,
+    subtotal_cents: subtotal, delivery_fee_cents: fee, discount_cents: discount, total_cents: total, loyalty_card_id: cardId, loyalty_redeemed: redeem,
     customer_name: b.name, customer_phone: b.phone, customer_email: b.email,
     address: b.mode === "levering" ? b.address : null, postcode: b.mode === "levering" ? b.postcode : null, city: b.mode === "levering" ? b.city : null,
     note: b.note || null, ip_hash,
@@ -126,17 +151,25 @@ export async function POST(req: Request) {
   if (error || !order) return NextResponse.json({ error: "Bestelling kon niet worden opgeslagen. Probeer opnieuw." }, { status: 500 });
 
   await db.from("order_lines").insert(lines.map((l) => ({ ...l, order_id: order.id, restaurant_id: r.id })));
+  if (redeem && lr && cardId) {
+    const { data: ok } = await db.rpc("loyalty_redeem", { p_card: cardId, p_need: lr.loyalty_stamps });
+    if (!ok) {
+      await db.from("orders").update({ status: "geannuleerd", loyalty_redeemed: false }).eq("id", order.id);
+      return NextResponse.json({ error: "Je beloning is al gebruikt. Vernieuw de pagina." }, { status: 409 });
+    }
+  }
 
   if (online) {
     // Betaling bij Mollie op het account van de zaak. Bonnen printen pas als Mollie "betaald" meldt (webhook).
     try {
-      const pay = await createPayment(r.id, { orderId: order.id, number: order.day_number, restaurantName: r.name, cents: subtotal + fee, redirectUrl: `${siteUrl()}/${r.slug}/bestelling/${order.id}` });
+      const pay = await createPayment(r.id, { orderId: order.id, number: order.day_number, restaurantName: r.name, cents: total, redirectUrl: `${siteUrl()}/${r.slug}/bestelling/${order.id}` });
       if (!pay.checkoutUrl) throw new Error("geen checkout");
       await db.from("orders").update({ mollie_payment_id: pay.id }).eq("id", order.id);
       return NextResponse.json({ id: order.id, number: order.day_number, checkoutUrl: pay.checkoutUrl });
     } catch (e) {
       console.error("mollie create", e);
       await db.from("orders").update({ status: "geannuleerd", payment_status: "mislukt" }).eq("id", order.id);
+      await undoRedeem(order.id);
       return NextResponse.json({ error: "Online betalen lukt nu niet. Kies betalen bij levering of afhaling, of probeer het later opnieuw." }, { status: 502 });
     }
   }

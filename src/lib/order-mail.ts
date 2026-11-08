@@ -1,5 +1,6 @@
 import { adminDb } from "./supabase";
 import { sendMail } from "./mail";
+import { rewardLabel } from "./loyalty";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const euro = (c: number) => "€ " + (c / 100).toFixed(2).replace(".", ",");
@@ -8,7 +9,7 @@ const euro = (c: number) => "€ " + (c / 100).toFixed(2).replace(".", ",");
 export async function sendOrderReceived(orderId: string) {
   const db = adminDb();
   const { data: o } = await db.from("orders")
-    .select("id, day_number, mode, requested_time, payment_method, payment_status, subtotal_cents, delivery_fee_cents, total_cents, customer_name, customer_email, address, postcode, city, note, restaurants ( name, slug, phone, street, postcode, city, custom_domain, domain_verified ), order_lines ( item_name, options, qty, unit_cents, id )")
+    .select("id, day_number, mode, requested_time, payment_method, payment_status, subtotal_cents, delivery_fee_cents, total_cents, discount_cents, loyalty_stamped, loyalty_redeemed, customer_name, customer_email, address, postcode, city, note, loyalty_cards ( stamps ), restaurants ( name, slug, phone, loyalty_stamps, loyalty_reward, loyalty_value, loyalty_item:menu_items!restaurants_loyalty_item_id_fkey ( name ), street, postcode, city, custom_domain, domain_verified ), order_lines ( item_name, options, qty, unit_cents, id )")
     .eq("id", orderId).maybeSingle();
   if (!o?.customer_email) return false;
   const r = o.restaurants as unknown as { name: string; slug: string; phone: string | null; street: string | null; postcode: string | null; city: string | null; custom_domain: string | null; domain_verified: boolean };
@@ -20,6 +21,15 @@ export async function sendOrderReceived(orderId: string) {
   const pay = o.payment_method === "online" && o.payment_status === "betaald" ? "Betaald online." : `Te betalen bij ${o.mode === "levering" ? "levering" : "afhaling"}: ${euro(o.total_cents)}.`;
   const shopAddr = [r.street, `${r.postcode ?? ""} ${r.city ?? ""}`.trim()].filter(Boolean).join(", ");
   const first = (o.customer_name ?? "").split(" ")[0];
+  // Klantenkaart: stand na deze bestelling.
+  const lc = o.loyalty_cards as unknown as { stamps: number } | null;
+  const lcfg = o.restaurants as unknown as { loyalty_stamps: number; loyalty_reward: string; loyalty_value: number; loyalty_item: { name: string } | null };
+  let card = "", cardDots = "";
+  if (lc && o.loyalty_stamped) {
+    const need = lcfg.loyalty_stamps, have = Math.min(lc.stamps, need), reward = rewardLabel(lcfg, lcfg.loyalty_item?.name);
+    card = have >= need ? `Je klantenkaart is vol! Bij je volgende bestelling krijg je ${reward}.` : `Je klantenkaart: ${have}/${need} stempels. Nog ${need - have} bestelling${need - have === 1 ? "" : "en"} tot ${reward}.`;
+    cardDots = Array.from({ length: need }, (_, i) => `<span style="display:inline-block;width:18px;height:18px;border-radius:50%;margin:0 3px 4px 0;background:${i < have ? "#ff6a00" : "#ffffff"};border:2px solid #ff6a00"></span>`).join("");
+  }
 
   const text = [
     `Hallo ${first},`, "",
@@ -27,7 +37,8 @@ export async function sendOrderReceived(orderId: string) {
     `${what}.`, "",
     ...lines.map((l) => `${l.qty} x ${l.item_name}${l.options.length ? ` (${l.options.join(", ")})` : ""}  ${euro(l.qty * l.unit_cents)}`),
     ...(o.delivery_fee_cents ? [`Leverkost  ${euro(o.delivery_fee_cents)}`] : []),
-    `Totaal  ${euro(o.total_cents)}`, pay, "",
+    ...(o.discount_cents ? [`Korting klantenkaart  -${euro(o.discount_cents)}`] : []),
+    `Totaal  ${euro(o.total_cents)}`, pay, "", ...(card ? [card, ""] : []),
     ...(o.mode === "levering" ? [`Leveradres: ${o.address}, ${o.postcode} ${o.city}`] : shopAddr ? [`Afhalen bij: ${shopAddr}`] : []),
     ...(o.note ? [`Opmerking: ${o.note}`] : []), "",
     `Volg je bestelling: ${statusUrl}`,
@@ -52,9 +63,11 @@ export async function sendOrderReceived(orderId: string) {
     <p style="margin:0 0 18px;font-size:15px;line-height:22px;color:#141a3a">Hallo ${esc(first)}, ${esc(r.name)} heeft je bestelling ontvangen en gaat ermee aan de slag. <b>${esc(what)}.</b></p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}
       ${o.delivery_fee_cents ? `<tr><td style="${F};padding:8px 0;font-size:15px;color:#596088">Leverkost</td><td align="right" style="${F};padding:8px 0;font-size:15px;color:#141a3a;white-space:nowrap">${nb(o.delivery_fee_cents)}</td></tr>` : ""}
+      ${o.discount_cents ? `<tr><td style="${F};padding:8px 0;font-size:15px;color:#596088">Korting klantenkaart</td><td align="right" style="${F};padding:8px 0;font-size:15px;color:#141a3a;white-space:nowrap">-${nb(o.discount_cents)}</td></tr>` : ""}
       <tr><td style="${F};padding:12px 0 0;font-weight:bold;font-size:17px;color:#141a3a">Totaal</td><td align="right" style="${F};padding:12px 0 0;font-weight:bold;font-size:17px;color:#141a3a;white-space:nowrap">${nb(o.total_cents)}</td></tr>
     </table>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:14px"><tr><td bgcolor="#fff4ec" style="background:#fff4ec;border-radius:8px;padding:10px 12px;${F};font-size:15px;font-weight:bold;color:#141a3a">${esc(pay)}</td></tr></table>
+    ${card ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:14px"><tr><td style="border:1px solid #ffd9bd;border-radius:10px;padding:12px 14px;${F}"><div style="font-size:13px;font-weight:bold;color:#596088;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Klantenkaart</div><div>${cardDots}</div><div style="font-size:15px;color:#141a3a;margin-top:4px">${esc(card)}</div></td></tr></table>` : ""}
     ${where || o.note ? `<p style="margin:16px 0 0;font-size:14px;line-height:20px;color:#596088">${where}${o.note ? `${where ? "<br>" : ""}Opmerking: ${esc(o.note)}` : ""}</p>` : ""}
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:22px"><tr><td bgcolor="#ff6a00" style="background:#ff6a00;border-radius:999px;padding:12px 22px">
       <a href="${statusUrl}" style="${F};font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block"><span style="color:#ffffff">Volg je bestelling</span></a>

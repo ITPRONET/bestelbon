@@ -90,6 +90,39 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
   const covers = plan === "pro" ? (r.cover_paths ?? []).slice(0, 3) : [];
   const layout = plan === "pro" ? r.menu_layout ?? "lijst" : "lijst";
 
+  /* ---------- klantenkaart (Pro) ---------- */
+  const rewardItem = r.loyalty_item_id ? allCats.flatMap((c) => c.menu_items).find((i) => i.id === r.loyalty_item_id) : undefined;
+  const kaartOn = plan === "pro" && !!r.loyalty_on && (r.loyalty_reward !== "product" || !!rewardItem);
+  const need = r.loyalty_stamps ?? 10;
+  const rewardText = r.loyalty_reward === "bedrag" ? `${eur(r.loyalty_value ?? 0)} korting` : r.loyalty_reward === "procent" ? `${r.loyalty_value ?? 0}% korting` : `gratis ${rewardItem?.name ?? "gerecht"}`;
+  const [join, setJoin] = useState(false);
+  useEffect(() => { try { setJoin(localStorage.getItem("bb_kaart") === "1"); } catch { /* ignore */ } }, []);
+  const [card, setCard] = useState<null | { stamps: number; ready: boolean }>(null);
+  const [redeem, setRedeem] = useState<"" | "sending" | "sent">("");
+  const [code, setCode] = useState("");
+  const [codeMsg, setCodeMsg] = useState("");
+  const contactOk = f.phone.replace(/\D/g, "").length >= 9 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim());
+  useEffect(() => {
+    if (!kaartOn || !join || !contactOk || sheet?.kind !== "checkout") { setCard(null); return; }
+    const t = setTimeout(async () => {
+      const res = await fetch("/api/klantenkaart", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: r.slug, phone: f.phone, email: f.email }) }).catch(() => null);
+      const d = await res?.json().catch(() => null);
+      setCard(d?.card ?? null);
+    }, 500);
+    return () => clearTimeout(t);
+  }, [kaartOn, join, contactOk, f.phone, f.email, sheet?.kind, r.slug]);
+  useEffect(() => { setRedeem(""); setCode(""); setCodeMsg(""); }, [f.phone, f.email]);
+  const using = kaartOn && join && !!card?.ready && redeem === "sent" && code.trim().length === 4;
+  const discount = using ? (r.loyalty_reward === "bedrag" ? Math.min(sub, r.loyalty_value ?? 0) : r.loyalty_reward === "procent" ? Math.min(sub, Math.round((sub * (r.loyalty_value ?? 0)) / 100)) : 0) : 0;
+  const total = sub + fee - discount;
+  async function askCode() {
+    setRedeem("sending"); setCodeMsg("");
+    const res = await fetch("/api/klantenkaart", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: r.slug, phone: f.phone, email: f.email, action: "code" }) }).catch(() => null);
+    const d = await res?.json().catch(() => null);
+    if (!res?.ok) { setRedeem(""); setCodeMsg(d?.error ?? "Er ging iets mis. Probeer opnieuw."); return; }
+    setRedeem("sent"); setCodeMsg(d?.recent ? "We stuurden je net al een code. Kijk in je mailbox." : `We mailden je een code naar ${f.email.trim()}.`);
+  }
+
   function add(it: Item, choiceIds: string[], qty = 1) {
     const key = it.id + "|" + [...choiceIds].sort().join(",");
     setCart((c) => {
@@ -106,7 +139,7 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
     setBusy(true); setError("");
     const res = await fetch("/api/orders", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slug: r.slug, mode, payment: mustPay ? "online" : online ? pay : "cash", ...f, lines: cart.map(({ itemId, choiceIds, qty }) => ({ itemId, choiceIds, qty })) }),
+      body: JSON.stringify({ slug: r.slug, mode, payment: mustPay ? "online" : online ? pay : "cash", ...f, loyalty: kaartOn ? { join, redeem: using, code: using ? code.trim() : undefined } : undefined, lines: cart.map(({ itemId, choiceIds, qty }) => ({ itemId, choiceIds, qty })) }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { setError(data.error ?? "Er ging iets mis. Probeer opnieuw."); setBusy(false); return; }
@@ -264,7 +297,7 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
             <>
               {error && <p className="err" role="alert" style={{ margin: "0 0 8px" }}>{error}</p>}
               <button className="s-cta" disabled={!cart.length || short > 0 || outZone || busy || !canOrder} onClick={order}>
-                {busy ? "Bezig…" : !canOrder ? "Nu gesloten" : short > 0 ? `Nog ${eur(short)} tot het minimum` : online && (mustPay || pay === "online") ? `Bestellen en betalen · ${eur(sub + fee)}` : `Bestelling plaatsen · ${eur(sub + fee)}`}
+                {busy ? "Bezig…" : !canOrder ? "Nu gesloten" : short > 0 ? `Nog ${eur(short)} tot het minimum` : online && (mustPay || pay === "online") ? `Bestellen en betalen · ${eur(total)}` : `Bestelling plaatsen · ${eur(total)}`}
               </button>
             </>
           }>
@@ -295,6 +328,36 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
               {outZone && <p className="err" style={{ margin: 0 }}>We leveren niet in {cleanPostcode(f.postcode)}. Kies afhalen of bel de zaak.</p>}
               {zones.length > 0 && !pcKnown && <p className="muted small" style={{ margin: 0 }}>We leveren in {zones.map((z) => z.postcode).join(", ")}.</p>}
             </>}
+            {kaartOn && (
+              <div className="s-kaart">
+                <label className="s-kaart-join">
+                  <input type="checkbox" checked={join} onChange={(e) => { setJoin(e.target.checked); try { localStorage.setItem("bb_kaart", e.target.checked ? "1" : "0"); } catch { /* ignore */ } }} />
+                  <span><b>Spaar stempels bij {r.name}</b><small>Na {need} bestellingen{(r.loyalty_min_cents ?? 0) > 0 ? ` vanaf ${eur(r.loyalty_min_cents ?? 0)}` : ""}: {rewardText}. Je kaart hangt aan je telefoonnummer en e-mail en wordt gewist na 12 maanden zonder bestelling.</small></span>
+                </label>
+                {join && contactOk && (
+                  <div className="s-kaart-stand">
+                    <div className="s-dots" aria-label={`${card?.stamps ?? 0} van ${need} stempels`}>
+                      {Array.from({ length: need }, (_, i) => <i key={i} className={i < (card?.stamps ?? 0) ? "on" : ""} />)}
+                    </div>
+                    {!card ? <small>Je eerste stempel krijg je bij deze bestelling.</small>
+                      : card.ready ? (
+                        redeem === "sent" ? (
+                          <div className="s-kaart-code">
+                            <small>{codeMsg}</small>
+                            <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" autoComplete="one-time-code" placeholder="Code (4 cijfers)" aria-label="Code uit je mail" />
+                            {using && <small className="ok">🎁 {rewardText} wordt toegevoegd aan deze bestelling.</small>}
+                          </div>
+                        ) : (
+                          <>
+                            <button type="button" className="s-kaart-btn" disabled={redeem === "sending"} onClick={askCode}>🎁 {redeem === "sending" ? "Code versturen…" : `Gebruik je beloning: ${rewardText}`}</button>
+                            {codeMsg && <small className="err">{codeMsg}</small>}
+                          </>
+                        )
+                      ) : <small>{card.stamps}/{need} stempels. Nog {need - card.stamps} bestelling{need - card.stamps === 1 ? "" : "en"} tot {rewardText}.</small>}
+                  </div>
+                )}
+              </div>
+            )}
             <Field label="Opmerking" hint="optioneel" value={f.note} onChange={(v) => setF({ ...f, note: v })} placeholder={mode === "levering" ? "bv. bel aan bij nr. 2" : "bv. extra servetten"} />
 
             {online && <>
@@ -309,7 +372,9 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
             <div className="s-sum">
               <div className="s-row"><span>Subtotaal</span><span className="num">{eur(sub)}</span></div>
               {mode === "levering" && <div className="s-row"><span>Leverkost</span><span className="num">{fee ? eur(fee) : "gratis"}</span></div>}
-              <div className="s-row s-total"><span>Totaal</span><span className="num">{eur(sub + fee)}</span></div>
+              {using && r.loyalty_reward === "product" && <div className="s-row"><span>🎁 Gratis {rewardItem?.name}</span><span className="num">{eur(0)}</span></div>}
+              {discount > 0 && <div className="s-row"><span>🎁 Korting klantenkaart</span><span className="num">−{eur(discount)}</span></div>}
+              <div className="s-row s-total"><span>Totaal</span><span className="num">{eur(total)}</span></div>
               {short > 0 && <MinBar short={short} min={minOrder} sub={sub} />}
               <p className="muted small" style={{ margin: 0 }}>{online && (mustPay || pay === "online") ? "Je bestelling gaat naar de zaak zodra je betaling gelukt is." : `Je betaalt bij ${mode === "levering" ? "levering" : "afhaling"}.`} Je gegevens dienen alleen voor deze bestelling en worden na 30 dagen gewist.</p>
             </div>

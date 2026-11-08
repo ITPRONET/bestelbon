@@ -5,7 +5,7 @@ export type TicketOrder = {
   day_number: number; created_at: string; mode: "levering" | "afhalen"; requested_time: string | null;
   payment_method: "online" | "cash"; payment_status: string; total_cents: number; delivery_fee_cents: number;
   customer_name: string | null; customer_phone: string | null; address: string | null; postcode: string | null; city: string | null;
-  note: string | null; late: boolean;
+  note: string | null; late: boolean; discount_cents?: number; loyalty_note?: string | null;
 };
 export type TicketLine = { item_name: string; options: string[]; qty: number; unit_cents: number };
 
@@ -51,6 +51,9 @@ export function deliveryTicket(name: string, o: TicketOrder, lines: TicketLine[]
     for (const opt of l.options) out.push(...wrap(`> ${opt}`, "    "));
   }
   if (o.delivery_fee_cents) out.push(lr("Leverkost", money(o.delivery_fee_cents)));
-  out.push(hr(), lr("TOTAAL", `EUR ${money(o.total_cents)}`), bar(payLine(o)), "", center("BestelBon - bestelbon.eu"), "", "");
+  if (o.discount_cents) out.push(lr("Korting klantenkaart", "-" + money(o.discount_cents)));
+  out.push(hr(), lr("TOTAAL", `EUR ${money(o.total_cents)}`), bar(payLine(o)));
+  if (o.loyalty_note) out.push(...wrap(o.loyalty_note));
+  out.push("", center("BestelBon - bestelbon.eu"), "", "");
   return out.join("\n");
 }

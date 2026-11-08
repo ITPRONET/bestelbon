@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/supabase";
 import { getPayment } from "@/lib/mollie";
 import { queueTickets } from "@/lib/print-jobs";
+import { undoRedeem } from "@/lib/loyalty";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +26,8 @@ export async function POST(req: Request) {
       .eq("id", o.id).eq("status", "wacht_op_betaling").select("id");
     if (upd?.length) await queueTickets(o.id, o.restaurant_id, o.mode);
   } else if (["failed", "canceled", "expired"].includes(status)) {
-    await db.from("orders").update({ status: "geannuleerd", payment_status: "mislukt" }).eq("id", o.id).eq("status", "wacht_op_betaling");
+    const { data: off } = await db.from("orders").update({ status: "geannuleerd", payment_status: "mislukt" }).eq("id", o.id).eq("status", "wacht_op_betaling").select("id");
+    if (off?.length) await undoRedeem(o.id);
   }
   return new NextResponse("OK");
 }

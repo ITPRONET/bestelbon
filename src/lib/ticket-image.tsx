@@ -116,10 +116,12 @@ function Delivery({ name, o, lines, qr }: { name: string; o: TicketOrder; lines:
           </Col>
         ))}
         {o.delivery_fee_cents > 0 && <Row l="Leverkost" r={money(o.delivery_fee_cents)} />}
+        {!!o.discount_cents && <Row l="Korting klantenkaart" r={"-" + money(o.discount_cents)} />}
       </Col>
       <Rule />
       <Row l="TOTAAL" r={`€ ${money(o.total_cents)}`} size={34} weight={700} />
       <Bar text={paid(o) ? "BETAALD ONLINE" : `TE BETALEN: € ${money(o.total_cents)}`} size={30} />
+      {o.loyalty_note && <div style={{ display: "flex", justifyContent: "center", textAlign: "center", fontSize: 26, fontWeight: 700, marginTop: 8, lineHeight: 1.3 }}>{o.loyalty_note}</div>}
       {qr && (
         <Col style={{ alignItems: "center", marginTop: 10 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}

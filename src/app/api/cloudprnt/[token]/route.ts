@@ -78,7 +78,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
     return new NextResponse(text, { headers: { "Content-Type": "text/plain; charset=utf-8", "X-Star-Cut": "full; feed=true", "Cache-Control": "no-store" } });
   }
   const { data: o } = await db.from("orders")
-    .select("day_number, created_at, mode, requested_time, payment_method, payment_status, total_cents, delivery_fee_cents, customer_name, customer_phone, address, postcode, city, note, restaurants ( name )")
+    .select("day_number, created_at, mode, requested_time, payment_method, payment_status, total_cents, delivery_fee_cents, customer_name, customer_phone, address, postcode, city, note, discount_cents, loyalty_note, restaurants ( name )")
     .eq("id", job.order_id).single();
   const { data: lines } = await db.from("order_lines").select("item_name, options, qty, unit_cents").eq("order_id", job.order_id).order("id");
   if (!o) return new NextResponse("Gone", { status: 410 });

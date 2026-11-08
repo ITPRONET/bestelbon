@@ -38,7 +38,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
   const { db, restaurants, current } = await panel(sp.zaak);
   if (!current) return null;
   const p: P = (["dag", "week", "maand", "alles"] as const).find((x) => x === sp.periode) ?? "maand";
-  const { data: rinfo } = await db.from("restaurants").select("created_at").eq("id", current.id).single();
+  const { data: rinfo } = await db.from("restaurants").select("created_at, loyalty_on").eq("id", current.id).single();
   const start = (rinfo?.created_at ?? new Date().toISOString()).slice(0, 10);
   const ref = sp.datum && /^\d{4}-\d{2}-\d{2}$/.test(sp.datum) && sp.datum <= today() ? sp.datum : today();
   const R = range(p, ref, start);
@@ -49,9 +49,19 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
     db.rpc("stats_options", args),
     db.rpc("stats_buckets", { ...args, unit: R.unit }),
   ]);
+  // Klantenkaart: hoeveel kaarten, hoeveel bestellingen ermee, hoeveel beloningen.
+  const kaart = rinfo?.loyalty_on ? await (async () => {
+    const base = () => db.from("orders").select("id", { count: "exact", head: true }).eq("restaurant_id", current.id).gte("business_day", R.d1).lte("business_day", R.d2).not("status", "in", "(wacht_op_betaling,geannuleerd)");
+    const [cards, withCard, rewards] = await Promise.all([
+      db.from("loyalty_cards").select("id", { count: "exact", head: true }).eq("restaurant_id", current.id),
+      base().not("loyalty_card_id", "is", null),
+      base().eq("loyalty_redeemed", true),
+    ]);
+    return { cards: cards.count ?? 0, withCard: withCard.count ?? 0, rewards: rewards.count ?? 0 };
+  })() : null;
   const kp = (k.data ?? { orders: 0, revenue_cents: 0, delivery: 0, online: 0 }) as { orders: number; revenue_cents: number; delivery: number; online: number };
   const it = (items.data ?? []) as { item_name: string; qty: number; revenue_cents: number }[];
-  const op = (opts.data ?? []) as { option_name: string; qty: number }[];
+  const op = ((opts.data ?? []) as { option_name: string; qty: number }[]).filter((o) => o.option_name !== "GRATIS - klantenkaart");
   const bm = new Map(((bs.data ?? []) as { bucket: string; orders: number }[]).map((b) => [b.bucket, Number(b.orders)]));
   const bars = buckets(R.unit, R.d1, R.d2).map((b) => ({ ...b, n: bm.get(b.key) ?? 0 }));
   const maxB = Math.max(1, ...bars.map((b) => b.n)), maxQ = Math.max(1, ...it.map((i) => Number(i.qty))), maxO = Math.max(1, ...op.map((o) => Number(o.qty)));
@@ -81,6 +91,16 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
             <div className="kpi"><span>Gemiddeld</span><b className="num">{eur(Math.round(Number(kp.revenue_cents) / kp.orders))}</b><small>{pct(Number(kp.online))} online betaald</small></div>
             <div className="kpi"><span>Topproduct</span><b className="kt">{it[0]?.item_name ?? "–"}</b><small>{it[0] ? `${it[0].qty} stuks` : ""}</small></div>
           </div>
+          {kaart && (
+            <section className="panel kaart-stats">
+              <h2 className="h2">Klantenkaart</h2>
+              <div className="kpis">
+                <div className="kpi"><span>Klantenkaarten</span><b className="num">{kaart.cards}</b><small>in totaal</small></div>
+                <div className="kpi"><span>Met klantenkaart</span><b className="num">{kaart.withCard}</b><small>{pct(kaart.withCard)} van de bestellingen</small></div>
+                <div className="kpi"><span>Beloningen</span><b className="num">{kaart.rewards}</b><small>gebruikt in deze periode</small></div>
+              </div>
+            </section>
+          )}
           <div className="sgrid">
             <section className="panel">
               <h2 className="h2">Bestsellers</h2>

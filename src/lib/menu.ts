@@ -8,7 +8,7 @@ const SELECT = `id, name, position, option_groups ( ${GROUP} ),
 export async function loadMenu(slug: string): Promise<Menu | null> {
   const db = publicDb();
   const { data: restaurant } = await db.from("restaurants")
-    .select("id, slug, name, type, city, street, postcode, brand_primary, brand_accent, logo_path, cover_paths, menu_layout, delivery_fee_cents, min_order_cents, prep_minutes, is_open, paused_reason, company_id, offers_delivery, offers_pickup, online_required")
+    .select("id, slug, name, type, city, street, postcode, brand_primary, brand_accent, logo_path, cover_paths, menu_layout, delivery_fee_cents, min_order_cents, prep_minutes, is_open, paused_reason, company_id, offers_delivery, offers_pickup, online_required, loyalty_on, loyalty_stamps, loyalty_min_cents, loyalty_reward, loyalty_item_id, loyalty_value")
     .eq("slug", slug).maybeSingle();
   if (!restaurant) return null;
   const [{ data: cats }, { data: hours }, { data: zones }] = await Promise.all([

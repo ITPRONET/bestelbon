@@ -76,6 +76,26 @@ async function saveLook(f: FormData) {
   redirect(`/beheer/instellingen?zaak=${data?.slug ?? ""}&ok=1#uitzicht`);
 }
 
+/** Pro: klantenkaart (stempels sparen, beloning). */
+async function saveKaart(f: FormData) {
+  "use server";
+  const db = await userDb();
+  const rid = s(f, "rid");
+  if (!(await proRestaurant(rid))) redirect("/beheer/instellingen");
+  const reward = ["product", "bedrag", "procent"].includes(s(f, "reward")) ? s(f, "reward") : "product";
+  let item: string | null = s(f, "item") || null;
+  if (item) { const { data: it } = await db.from("menu_items").select("id").eq("id", item).eq("restaurant_id", rid).maybeSingle(); item = it?.id ?? null; }
+  const on = f.get("on") === "on";
+  if (on && reward === "product" && !item) redirect(`/beheer/instellingen?fout=kaart#klantenkaart`);
+  const value = reward === "bedrag" ? toCents(f.get("bedrag")) ?? 0 : reward === "procent" ? Math.max(1, Math.min(100, Math.round(Number(s(f, "procent")) || 0))) : 0;
+  const stamps = Math.max(3, Math.min(20, Math.round(Number(s(f, "stamps")) || 10)));
+  const { data } = await db.from("restaurants").update({
+    loyalty_on: on, loyalty_stamps: stamps, loyalty_min_cents: toCents(f.get("min")) ?? 0, loyalty_reward: reward, loyalty_item_id: item, loyalty_value: value,
+  }).eq("id", rid).select("slug").single();
+  if (data) revalidatePath(`/${data.slug}`);
+  redirect(`/beheer/instellingen?zaak=${data?.slug ?? ""}&ok=1#klantenkaart`);
+}
+
 /** Owner of this restaurant on the Pro plan? (RLS decides membership.) */
 async function proRestaurant(rid: string) {
   const db = await userDb();
@@ -215,6 +235,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
     (acc[k] ??= { pcs: [], fee: z.fee_cents, min: z.min_order_cents }).pcs.push(z.postcode);
     return acc;
   }, {}));
+  const { data: menuItems } = await db.from("menu_items").select("id, name, price_cents, menu_categories ( name, position ), position").eq("restaurant_id", current.id);
+  const itemOpts = ((menuItems ?? []) as unknown as { id: string; name: string; price_cents: number; position: number; menu_categories: { name: string; position: number } | null }[])
+    .sort((a, b) => (a.menu_categories?.position ?? 0) - (b.menu_categories?.position ?? 0) || a.position - b.position);
   const storage = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/zaak-media/`;
   if (!r) return null;
   const { data: pay } = await adminDb().from("payment_accounts").select("organization_name, profile_id, can_receive, onboarding_status, connected_at").eq("restaurant_id", current.id).maybeSingle();
@@ -228,6 +251,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
       <h1 className="ph">Instellingen <Uitleg video="instellingen" title="Alle instellingen uitgelegd" /></h1>
       {sp.ok && <div className="okmsg">Opgeslagen. Je bestelpagina is bijgewerkt.</div>}
       {sp.fout === "logo" && <div className="alert">Het logo moet een PNG, JPG of WebP van maximaal 2 MB zijn.</div>}
+      {sp.fout === "kaart" && <div className="alert">Kies welk gerecht klanten gratis krijgen met een volle klantenkaart.</div>}
       {sp.fout === "cover" && <div className="alert">Een headerfoto moet een PNG, JPG of WebP van maximaal 4 MB zijn.</div>}
       <div className="sgrid">
         <form action={saveZaak} className="panel" style={{ display: "grid", gap: 12, alignContent: "start" }}>
@@ -314,6 +338,39 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
           </form>
         ) : (
           <p className="muted" style={{ margin: 0 }}>Met Pro zet je tot 3 eigen foto&apos;s bovenaan je bestelpagina en kies je uit 3 menuweergaven: lijst, fotoraster of menukaart. Vraag het aan via info@bestelbon.eu.</p>
+        )}
+      </section>
+      <section className="panel" id="klantenkaart" style={{ display: "grid", gap: 14 }}>
+        <h2 className="h2">Klantenkaart <span className="pill">{pro ? "Pro" : "Pro-functie"}</span></h2>
+        {pro ? (
+          <form action={saveKaart} style={{ display: "grid", gap: 14 }}>
+            <input type="hidden" name="rid" value={r.id} />
+            <p className="muted" style={{ margin: 0 }}>Klanten sparen stempels bij elke online bestelling. Is hun kaart vol, dan krijgen ze bij de volgende bestelling een beloning. Zo bestellen ze vaker rechtstreeks bij jou in plaats van via Takeaway of Uber Eats.</p>
+            <label className="check"><input type="checkbox" name="on" defaultChecked={!!r.loyalty_on} /> Klantenkaart aanzetten</label>
+            <div className="kaart-grid">
+              <label className="field">Stempels voor een beloning<input name="stamps" type="number" min={3} max={20} defaultValue={r.loyalty_stamps ?? 10} /></label>
+              <label className="field">Minimum per bestelling voor een stempel (€)<input name="min" inputMode="decimal" defaultValue={fromCents(r.loyalty_min_cents ?? 1000)} /></label>
+            </div>
+            <fieldset className="kaart-reward">
+              <legend><b>Beloning</b></legend>
+              <label className="kaart-opt"><input type="radio" name="reward" value="product" defaultChecked={(r.loyalty_reward ?? "product") === "product"} /> <span>Gratis gerecht</span>
+                <select name="item" defaultValue={r.loyalty_item_id ?? ""}>
+                  <option value="">Kies een gerecht…</option>
+                  {itemOpts.map((i) => <option key={i.id} value={i.id}>{i.menu_categories?.name ? `${i.menu_categories.name} · ` : ""}{i.name} ({fromCents(i.price_cents)} €)</option>)}
+                </select>
+              </label>
+              <label className="kaart-opt"><input type="radio" name="reward" value="bedrag" defaultChecked={r.loyalty_reward === "bedrag"} /> <span>Korting in euro</span>
+                <input name="bedrag" inputMode="decimal" defaultValue={r.loyalty_reward === "bedrag" ? fromCents(r.loyalty_value ?? 500) : "5,00"} style={{ width: 110 }} /> <span className="muted">€</span>
+              </label>
+              <label className="kaart-opt"><input type="radio" name="reward" value="procent" defaultChecked={r.loyalty_reward === "procent"} /> <span>Korting in procent</span>
+                <input name="procent" type="number" min={1} max={100} defaultValue={r.loyalty_reward === "procent" ? r.loyalty_value ?? 10 : 10} style={{ width: 90 }} /> <span className="muted">%</span>
+              </label>
+            </fieldset>
+            <p className="muted small" style={{ margin: 0 }}>Klanten gebruiken hun beloning met een code die ze per mail krijgen, zodat niemand andermans kaart kan gebruiken. De stand staat op de afhaal- of bezorgbon en in de bevestigingsmail. Een beloning staat op de bon als „GRATIS - klantenkaart”.</p>
+            <div><button className="btn btn-primary">Opslaan</button></div>
+          </form>
+        ) : (
+          <p className="muted" style={{ margin: 0 }}>Met Pro sparen je klanten stempels bij elke online bestelling, bv. na 10 bestellingen een gratis grote friet. Zo komen ze vaker terug, rechtstreeks bij jou. Vraag het aan via info@bestelbon.eu.</p>
         )}
       </section>
       <section className="panel" id="betalen" style={{ display: "grid", gap: 12 }}>

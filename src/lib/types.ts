@@ -10,6 +10,7 @@ export type Restaurant = {
   brand_primary: string; brand_accent: string; logo_path: string | null;
   delivery_fee_cents: number; min_order_cents: number; prep_minutes: number; is_open: boolean; paused_reason: string | null;
   company_id: string; cover_paths?: string[]; menu_layout?: "lijst" | "raster" | "kaart"; offers_delivery?: boolean; offers_pickup?: boolean; online_required?: boolean;
+  loyalty_on?: boolean; loyalty_stamps?: number; loyalty_min_cents?: number; loyalty_reward?: "product" | "bedrag" | "procent"; loyalty_item_id?: string | null; loyalty_value?: number;
 };
 export type Trader = { legal_name: string; vat_number: string; street: string | null; postcode: string | null; city: string | null; email: string | null; phone: string | null };
 export type Menu = { restaurant: Restaurant; categories: Category[]; plan: "standaard" | "pro"; trader?: Trader | null; online?: boolean; hours: import("./hours").HourRow[]; zones: import("./hours").Zone[] };

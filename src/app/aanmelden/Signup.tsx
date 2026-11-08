@@ -59,7 +59,7 @@ export default function Signup({ initialPlan, prices }: { initialPlan: "standaar
               <button type="button" key={k} className="plan" aria-pressed={plan === k} onClick={() => setPlan(k)}>
                 <b>{k === "pro" ? "Pro" : "Standaard"}</b>
                 <span>{k === "pro" ? prices.pro : prices.standaard} <small>/ maand excl. btw</small></span>
-                <small>{k === "pro" ? "Alles van Standaard, plus je eigen logo en kleuren, tot 3 eigen foto's bovenaan, 3 menuweergaven (lijst, fotoraster, menukaart) en je eigen domeinnaam (bv. bestellen.jouwzaak.be)." : "Bestelpagina, automatische keukenbonnen, beheerpaneel en verkoopcijfers."}</small>
+                <small>{k === "pro" ? "Alles van Standaard, plus je eigen logo en kleuren, tot 3 eigen foto's bovenaan, 3 menuweergaven (lijst, fotoraster, menukaart), een klantenkaart met stempels en je eigen domeinnaam (bv. bestellen.jouwzaak.be)." : "Bestelpagina, automatische keukenbonnen, beheerpaneel en verkoopcijfers."}</small>
               </button>
             ))}
           </div>

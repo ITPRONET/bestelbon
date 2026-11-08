@@ -1,11 +1,13 @@
 import { after } from "next/server";
 import { adminDb } from "./supabase";
 import { sendOrderReceived } from "./order-mail";
+import { awardStamp } from "./loyalty";
 
 /** Queue the tickets for an order: kitchen ticket(s), plus a customer ticket (bezorgbon or afhaalbon)
  *  on the counter/delivery printer, or on the kitchen printer when there is none. */
 export async function queueTickets(orderId: string, restaurantId: string, mode: "levering" | "afhalen") {
   const db = adminDb();
+  await awardStamp(orderId).catch((e) => console.error("klantenkaart", e)); // vóór de bonnen: de stand komt op de bon
   const { data: printers } = await db.from("printers").select("id, role, copies").eq("restaurant_id", restaurantId);
   const all = printers ?? [];
   const kitchen = all.filter((p) => p.role === "keuken");
