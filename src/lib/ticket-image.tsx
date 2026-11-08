@@ -61,6 +61,29 @@ function Paper({ children }: { children: React.ReactNode }) {
   return <div style={{ display: "flex", flexDirection: "column", boxSizing: "border-box", width: W, padding: `${PAD}px ${PAD}px 40px`, background: "#fff", color: "#000", fontFamily: MONO }}>{children}</div>;
 }
 
+/** Klantenkaart op de klantenbon: kader met stempels (● = gespaard) en wat er nog nodig is. */
+function LoyaltyBox({ note }: { note: string }) {
+  const m = note.match(/Klantenkaart (\d+)\/(\d+)/);
+  const have = m ? Number(m[1]) : 0, need = m ? Number(m[2]) : 0;
+  const parts = note.split(" · ");
+  const used = parts.find((p) => p.startsWith("BELONING"));
+  const rest = parts.filter((p) => p !== used).map((p) => p.replace(/^Klantenkaart \d+\/\d+( - )?/, ""));
+  return (
+    <Col style={{ border: "3px solid #000", borderRadius: 14, padding: "10px 12px", marginTop: 12, alignItems: "center" }}>
+      {used && <div style={{ display: "flex", background: "#000", color: "#fff", fontSize: 24, fontWeight: 700, padding: "4px 10px", marginBottom: 8 }}>{used}</div>}
+      <div style={{ display: "flex", fontSize: 28, fontWeight: 700, letterSpacing: 2 }}>{`KLANTENKAART  ${have}/${need}`}</div>
+      {need > 0 && need <= 20 && (
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8, margin: "8px 0 4px" }}>
+          {Array.from({ length: need }, (_, i) => (
+            <div key={i} style={{ display: "flex", width: 34, height: 34, borderRadius: 17, border: "3px solid #000", background: i < have ? "#000" : "#fff" }} />
+          ))}
+        </div>
+      )}
+      {rest.filter(Boolean).map((t, i) => <div key={i} style={{ display: "flex", justifyContent: "center", textAlign: "center", fontSize: 24, fontWeight: 600, lineHeight: 1.3 }}>{t}</div>)}
+    </Col>
+  );
+}
+
 /* ---------- tickets ---------- */
 function Kitchen({ name, o, lines }: { name: string; o: TicketOrder; lines: TicketLine[] }) {
   return (
@@ -121,7 +144,7 @@ function Delivery({ name, o, lines, qr }: { name: string; o: TicketOrder; lines:
       <Rule />
       <Row l="TOTAAL" r={`€ ${money(o.total_cents)}`} size={34} weight={700} />
       <Bar text={paid(o) ? "BETAALD ONLINE" : `TE BETALEN: € ${money(o.total_cents)}`} size={30} />
-      {o.loyalty_note && <div style={{ display: "flex", justifyContent: "center", textAlign: "center", fontSize: 26, fontWeight: 700, marginTop: 8, lineHeight: 1.3 }}>{o.loyalty_note}</div>}
+      {o.loyalty_note && <LoyaltyBox note={o.loyalty_note} />}
       {qr && (
         <Col style={{ alignItems: "center", marginTop: 10 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}

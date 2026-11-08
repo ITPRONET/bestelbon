@@ -72,9 +72,9 @@ export async function checkRewardCode(card: { id: string; code_hash: string | nu
 /** Stempel bij een bestelling die echt doorgaat (bonnen in de wachtrij). Eenmalig per bestelling. */
 export async function awardStamp(orderId: string) {
   const db = adminDb();
-  const { data: o } = await db.from("orders").select("loyalty_card_id, loyalty_stamped, loyalty_redeemed, subtotal_cents, restaurants ( loyalty_stamps, loyalty_min_cents )").eq("id", orderId).maybeSingle();
+  const { data: o } = await db.from("orders").select("loyalty_card_id, loyalty_stamped, loyalty_redeemed, subtotal_cents, restaurants ( loyalty_stamps, loyalty_min_cents, loyalty_reward, loyalty_value, menu_items!restaurants_loyalty_item_id_fkey ( name ) )").eq("id", orderId).maybeSingle();
   if (!o?.loyalty_card_id || o.loyalty_stamped) return;
-  const cfg = o.restaurants as unknown as { loyalty_stamps: number; loyalty_min_cents: number };
+  const cfg = o.restaurants as unknown as LoyaltyCfg & { loyalty_stamps: number; loyalty_min_cents: number; menu_items: { name: string } | null };
   const earns = o.subtotal_cents >= cfg.loyalty_min_cents;
   const { data: claimed } = await db.from("orders").update({ loyalty_stamped: true }).eq("id", orderId).eq("loyalty_stamped", false).select("id");
   if (!claimed?.length) return;
@@ -83,7 +83,9 @@ export async function awardStamp(orderId: string) {
   const need = cfg.loyalty_stamps;
   const note = [
     o.loyalty_redeemed ? "BELONING KLANTENKAART GEBRUIKT" : "",
-    stamps >= need ? `Klantenkaart ${need}/${need} - vol! Beloning bij volgende bestelling` : `Klantenkaart ${stamps}/${need}${earns ? "" : " (geen stempel: onder minimum)"}`,
+    stamps >= need
+      ? `Klantenkaart ${need}/${need} - vol! ${rewardLabel(cfg, cfg.menu_items?.name)} bij volgende bestelling`
+      : `Klantenkaart ${stamps}/${need} - nog ${need - stamps} tot ${rewardLabel(cfg, cfg.menu_items?.name)}${earns ? "" : " (geen stempel: onder minimum)"}`,
   ].filter(Boolean).join(" · ");
   await db.from("orders").update({ loyalty_note: note }).eq("id", orderId);
 }
