@@ -75,17 +75,17 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
       {sp.fout && <div className="alert">{errors[sp.fout] ?? "Er ging iets mis."}</div>}
       {unpaid.length > 0 && (
         <div className="alert">
-          {unpaid.length === 1 ? "1 factuur staat open" : `${unpaid.length} facturen staan open`}: {eur(unpaid.reduce((t, i) => t + i.total_cents, 0))}.
-          {mandate ? " We schrijven ze automatisch af via je domiciliëring." : <> Betaal online hieronder, of op {sel.iban || "ons rekeningnummer"} met de gestructureerde mededeling op de factuur.</>}
+          {unpaid.length === 1 ? "1 betaalverzoek staat open" : `${unpaid.length} betaalverzoeken staan open`}: {eur(unpaid.reduce((t, i) => t + i.total_cents, 0))}.
+          {mandate ? " We schrijven ze automatisch af via je domiciliëring." : <> Betaal online hieronder, of op {sel.iban || "ons rekeningnummer"} met de gestructureerde mededeling op het betaalverzoek.</>}
         </div>
       )}
-      {sp.betaling && <div className="okmsg">Bedankt. Zodra Mollie je betaling bevestigt, staat de factuur op betaald{sp.betaling === "mandaat" && !mandate ? " en is je domiciliëring actief" : ""}. Dat duurt meestal enkele seconden.</div>}
+      {sp.betaling && <div className="okmsg">Bedankt. Zodra Mollie je betaling bevestigt, staat het betaalverzoek op betaald en ontvang je de factuur via Peppol of e-mail{sp.betaling === "mandaat" && !mandate ? " en is je domiciliëring actief" : ""}. Dat duurt meestal enkele seconden.</div>}
       {online && (
         <section className="panel" style={{ display: "grid", gap: 6 }}>
           <h2 className="h2">Betaling</h2>
           {mandate
-            ? <><p style={{ margin: 0 }}><span className="pill ok">Actief</span> {co.mandate_label ?? "Domiciliëring"}. Je {co.billing === "jaar" ? "jaarfactuur" : "maandfactuur"} wordt automatisch afgeschreven, {CHARGE_AFTER_DAYS} dagen na de factuurdatum. Het betaalverzoek geldt als vooraankondiging. Stoppen kan via info@bestelbon.eu.</p></>
-            : <p style={{ margin: 0 }}>Betaal je openstaande factuur online met Bancontact, kaart of je bankapp.</p>}
+            ? <><p style={{ margin: 0 }}><span className="pill ok">Actief</span> {co.mandate_label ?? "Domiciliëring"}. Je {co.billing === "jaar" ? "jaarbedrag" : "maandbedrag"} wordt automatisch afgeschreven, {CHARGE_AFTER_DAYS} dagen na de datum van het betaalverzoek. Het betaalverzoek geldt als vooraankondiging. Stoppen kan via info@bestelbon.eu.</p></>
+            : <p style={{ margin: 0 }}>Betaal je openstaand betaalverzoek online met Bancontact, kaart of je bankapp.</p>}
           {payable.map((i) => (
             // Eén formulier per factuur: de knop-waarde (name/value) komt niet mee in een server action.
             <form key={i.id} action={payInvoice} style={{ display: "grid", gap: 10, marginTop: 4 }}>
@@ -94,9 +94,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
               {!mandate && <>
                 <label className="check" style={{ alignItems: "flex-start", fontWeight: 400 }}>
                   <input type="checkbox" name="mandaat" style={{ marginTop: 4 }} />
-                  <span>Ik machtig {sel.name || "ITPRONET"} om mijn volgende BestelBon-{co.billing === "jaar" ? "jaarfacturen" : "maandfacturen"} automatisch af te schrijven via Mollie (SEPA-domiciliëring of kaart), ten vroegste {CHARGE_AFTER_DAYS} dagen na de factuurdatum. Het betaalverzoek geldt als vooraankondiging. Ik kan dit altijd stoppen via info@bestelbon.eu.</span>
+                  <span>Ik machtig {sel.name || "ITPRONET"} om mijn volgende BestelBon-{co.billing === "jaar" ? "jaarbedragen" : "maandbedragen"} automatisch af te schrijven via Mollie (SEPA-domiciliëring of kaart), ten vroegste {CHARGE_AFTER_DAYS} dagen na de datum van het betaalverzoek. Het betaalverzoek geldt als vooraankondiging. Ik kan dit altijd stoppen via info@bestelbon.eu.</span>
                 </label>
-                <p className="muted small" style={{ margin: 0 }}>Niet aangevinkt? Dan betaal je enkel deze factuur online en betaal je volgende facturen zelf.</p>
+                <p className="muted small" style={{ margin: 0 }}>Niet aangevinkt? Dan betaal je enkel dit betaalverzoek online en betaal je de volgende zelf.</p>
               </>}
               <div><button className="btn btn-primary">Betaal {i.number} · {eur(i.total_cents)}</button></div>
             </form>
@@ -106,12 +106,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
       <div className="kpis">
         <div className="kpi"><span>Pakket</span><b className="kt">{co.plan === "pro" ? "Pro" : "Standaard"}</b><small>{co.billing === "jaar" ? `${eur(Math.round(monthly * 12 * 0.9))} per jaar excl. btw (10% korting)` : `${eur(monthly)} per maand excl. btw`}</small></div>
         <div className="kpi"><span>Status</span><b className="kt">{{ installatie: "Installatie", actief: "Actief", achterstallig: "Achterstallig", opgezegd: "Opgezegd" }[co.status as string]}</b><small>sinds {longDate(co.started_on)}</small></div>
-        <div className="kpi"><span>Facturen</span><b>{invoices?.length ?? 0}</b><small>{unpaid.length} open</small></div>
+        <div className="kpi"><span>Betaalverzoeken</span><b>{invoices?.length ?? 0}</b><small>{unpaid.length} open</small></div>
         <div className="kpi"><span>Pakket wijzigen?</span><b className="kt" style={{ fontSize: 15 }}>info@bestelbon.eu</b><small>wij passen het aan</small></div>
       </div>
       <div className="sgrid">
         <section className="panel">
-          <h2 className="h2">Facturen</h2>
+          <h2 className="h2">Betaalverzoeken</h2>
           {!invoices?.length ? <p className="muted" style={{ margin: 0 }}>Nog geen facturen.</p> : (
             <table className="tbl">
               <thead><tr><th>Nummer</th><th>Datum</th><th>Bedrag</th><th>Status</th></tr></thead>

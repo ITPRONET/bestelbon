@@ -32,7 +32,45 @@ const PITA_EXTRA: TGroup = { name: "Extra's", multi: true, choices: [["Extra vle
 const PITA_ZONDER: TGroup = { name: "Zonder", multi: true, choices: ["Zonder ui", "Zonder tomaat", "Zonder sla", "Zonder komkommer", "Zonder rode kool"] };
 const PITA_PIKANT: TGroup = { name: "Pikant", choices: ["Een beetje pikant", "Heel pikant"] };
 
+
+// Frituur
+const FRIET_FORMAAT: TGroup = { name: "Formaat", required: true, choices: ["Klein", ["Middel", 60], ["Groot", 130], ["Familie (3-4 pers.)", 450]] };
+const FRIET_SAUS: TGroup = { name: "Saus", multi: true, max: 2, choices: [["Mayonaise", 100], ["Stoofvleessaus", 180], ["Andalouse", 100], ["Samurai", 100], ["Cocktail", 100], ["Tartaar", 100], ["Curry ketchup", 100], ["Joppiesaus", 100], ["Bicky-saus", 100], ["Pickles", 100], ["Bearnaise", 100], ["Looksaus", 100]] };
+const SNACK_BEREIDING: TGroup = { name: "Bereiding", choices: [["Speciaal (ui, curry, mayo)", 60], "Met ui", "Met curry"] };
+const BURGER_EXTRA: TGroup = { name: "Extra's", multi: true, choices: [["Extra kaas", 80], ["Spek", 100], ["Ei", 60], ["Extra burger", 250]] };
+const BURGER_ZONDER: TGroup = { name: "Zonder", multi: true, choices: ["Zonder ui", "Zonder augurk", "Zonder sla", "Zonder saus"] };
+
 export const TEMPLATES: Template[] = [
+  {
+    key: "frituur",
+    label: "Frituur",
+    intro: "Frieten in vier formaten met sauzen (max. 2), snacks met bereiding, burgers, schotels, losse sauzen, dranken en ijs.",
+    categories: [
+      {
+        name: "Frieten", groups: [FRIET_FORMAAT, FRIET_SAUS],
+        items: [["Frieten", 320, "Vers gesneden, in rundvet gebakken"], ["Frieten met stoofvlees", 750], ["Frieten met vol-au-vent", 750], ["Zoete-aardappelfrietjes", 450]],
+      },
+      {
+        name: "Snacks", groups: [SNACK_BEREIDING],
+        items: [
+          ["Frikandel", 280], ["Bamischijf", 300], ["Kipcorn", 300], ["Viandelle", 300], ["Mexicano", 380], ["Lucifer", 300],
+          ["Cervela", 380], ["Curryworst", 300], ["Boulet", 380], ["Bitterballen (6 stuks)", 450], ["Kaaskroketten (2 stuks)", 500],
+          ["Garnaalkroketten (2 stuks)", 750], ["Kipnuggets (6 stuks)", 450], ["Mozzarella sticks (5 stuks)", 500], ["Loempia", 380], ["Vegetarische frikandel", 300],
+        ],
+      },
+      {
+        name: "Burgers", groups: [BURGER_EXTRA, BURGER_ZONDER],
+        items: [["Bicky Burger", 450], ["Bicky Cheese", 500], ["Hamburger", 450], ["Cheeseburger", 500], ["Chickenburger", 500], ["Fishburger", 500], ["Veggie burger", 500]],
+      },
+      {
+        name: "Schotels", groups: [{ name: "Bijgerecht", required: true, choices: ["Frieten", ["Kroketten", 100], "Brood"] }, FRIET_SAUS],
+        items: [["Stoofvlees schotel", 1450, "Met slaatje"], ["Vol-au-vent schotel", 1450, "Met slaatje"], ["Balletjes in tomatensaus", 1350], ["Kipschotel", 1350], ["Visschotel", 1500]],
+      },
+      { name: "Losse sauzen", items: [["Mayonaise", 100], ["Stoofvleessaus", 180], ["Andalouse", 100], ["Samurai", 100], ["Tartaar", 100], ["Curry ketchup", 100], ["Bicky-saus", 100]] },
+      DRANKEN,
+      { name: "IJs en dessert", items: [["Waterijsje", 200], ["Magnum", 350], ["Dame blanche", 550]] },
+    ],
+  },
   {
     key: "broodjeszaak",
     label: "Broodjeszaak",
