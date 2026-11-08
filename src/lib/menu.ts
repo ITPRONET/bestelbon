@@ -3,7 +3,7 @@ import type { Menu, Category, Trader } from "./types";
 
 const GROUP = "id, name, multi, required, max_select, position, option_choices ( id, name, extra_cents, position )";
 const SELECT = `id, name, position, option_groups ( ${GROUP} ),
-  menu_items ( id, name, description, price_cents, available, image_path, position, option_groups ( ${GROUP} ) )`;
+  menu_items ( id, name, description, price_cents, available, image_path, position, allergens, option_groups ( ${GROUP} ) )`;
 
 export async function loadMenu(slug: string): Promise<Menu | null> {
   const db = publicDb();

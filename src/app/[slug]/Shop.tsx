@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Menu, Item, CartLine } from "@/lib/types";
 import { eur } from "@/lib/money";
 import { cleanPostcode, DAYS, findZone, openState, timeSlots, weekMinute, type HourRow } from "@/lib/hours";
+import { allergenLabel } from "@/lib/allergens";
 
 type Line = CartLine & { key: string };
 type Mode = "levering" | "afhalen";
@@ -196,6 +197,7 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
                       <span className="s-item-t">
                         <b>{n > 0 && <span className="s-n">{n}×</span>}{i.name}</b>
                         {i.description && <small>{i.description}</small>}
+                        {!!i.allergens?.length && <span className="s-alg" aria-label={`Allergenen: ${i.allergens.map(allergenLabel).join(", ")}`}>{i.allergens.map((k) => <i key={k}>{allergenLabel(k)}</i>)}</span>}
                         <span className="s-price">{extraFrom ? "vanaf " : ""}{eur(i.price_cents)}{!i.available && <em> · uitverkocht</em>}</span>
                       </span>
                       {i.image_path
@@ -207,6 +209,7 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
               </div>
             </section>
           ))}
+          <p className="s-alg-note">Allergie of vraag over allergenen? {trader?.phone ? <>Bel {r.name}: <a href={`tel:${trader.phone.replace(/\s/g, "")}`}>{trader.phone}</a>.</> : <>Vraag het aan {r.name}.</>} Vermelde allergenen gelden voor het gerecht zoals beschreven; sporen zijn nooit uit te sluiten.</p>
           <footer className="s-foot"><span>Bestellen via BestelBon</span><Link href="/privacy">Privacy</Link></footer>
         </div>
 
@@ -394,6 +397,7 @@ function ItemSheet({ item, storageUrl, onClose, onAdd }: { item: Item; storageUr
       }>
       {item.image_path && <img className="s-hero" src={storageUrl + item.image_path} alt="" />} {/* eslint-disable-line @next/next/no-img-element */}
       {item.description && <p className="muted" style={{ marginTop: 0 }}>{item.description}</p>}
+      {item.allergens != null && <p className="s-alg-full">{item.allergens.length ? <>Allergenen: <b>{item.allergens.map(allergenLabel).join(", ")}</b></> : "Bevat geen van de 14 wettelijke allergenen."}</p>}
       {item.option_groups.map((g) => (
         <fieldset className="s-group" key={g.id}>
           <legend><b>{g.name}</b><span className={`s-tag ${g.required && !sel[g.id]?.length ? "req" : ""}`}>{g.required ? (sel[g.id]?.length ? "✓" : "Verplicht") : g.multi ? (g.max_select ? `Optioneel · max. ${g.max_select}` : "Optioneel · meerdere") : "Optioneel"}</span></legend>

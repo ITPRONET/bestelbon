@@ -8,13 +8,14 @@ import { toCents, fromCents } from "@/lib/euro";
 import PhotoInput from "./PhotoInput";
 import { TEMPLATES, templateFor, type TChoice } from "@/lib/menu-templates";
 import Uitleg from "@/components/Uitleg";
+import { ALLERGENS, allergensFromForm } from "@/lib/allergens";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Menu" };
 
 type Choice = { id: string; name: string; extra_cents: number; position: number };
 type Group = { id: string; name: string; multi: boolean; required: boolean; max_select: number | null; position: number; option_choices: Choice[] };
-type Item = { id: string; name: string; description: string | null; price_cents: number; available: boolean; position: number; image_path: string | null; option_groups: Group[] };
+type Item = { id: string; name: string; description: string | null; price_cents: number; available: boolean; position: number; image_path: string | null; allergens: string[] | null; option_groups: Group[] };
 type Cat = { id: string; name: string; position: number; menu_items: Item[]; option_groups: Group[] };
 
 async function done(rid: string) {
@@ -68,7 +69,7 @@ async function saveItem(f: FormData) {
   const db = await userDb();
   const price = toCents(f.get("price"));
   if (price === null || !s(f, "name")) return;
-  await db.from("menu_items").update({ name: s(f, "name").slice(0, 80), description: s(f, "description").slice(0, 200) || null, price_cents: price, available: f.get("available") === "on", category_id: s(f, "cat") }).eq("id", s(f, "id"));
+  await db.from("menu_items").update({ name: s(f, "name").slice(0, 80), description: s(f, "description").slice(0, 200) || null, price_cents: price, available: f.get("available") === "on", category_id: s(f, "cat"), allergens: allergensFromForm(f) }).eq("id", s(f, "id"));
   await done(s(f, "rid"));
 }
 async function savePhoto(f: FormData) {
@@ -188,7 +189,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
   const { db, restaurants, current } = await panel(sp.zaak);
   if (!current) return null;
   const { data } = await db.from("menu_categories")
-    .select("id, name, position, option_groups ( id, name, multi, required, max_select, position, option_choices ( id, name, extra_cents, position ) ), menu_items ( id, name, description, price_cents, available, position, image_path, option_groups ( id, name, multi, required, max_select, position, option_choices ( id, name, extra_cents, position ) ) )")
+    .select("id, name, position, option_groups ( id, name, multi, required, max_select, position, option_choices ( id, name, extra_cents, position ) ), menu_items ( id, name, description, price_cents, available, position, image_path, allergens, option_groups ( id, name, multi, required, max_select, position, option_choices ( id, name, extra_cents, position ) ) )")
     .eq("restaurant_id", current.id).order("position");
   const cats = ((data ?? []) as unknown as Cat[]).map((c) => ({ ...c, option_groups: [...c.option_groups].sort((a, b) => a.position - b.position), menu_items: [...c.menu_items].sort((a, b) => a.position - b.position) }));
   const { data: rest } = await db.from("restaurants").select("type").eq("id", current.id).maybeSingle();
@@ -266,7 +267,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
             {c.menu_items.map((i) => (
               <details className="mitem" key={i.id}>
                 <summary>
-                  <span className={i.available ? "" : "muted"} style={{ display: "flex", gap: 10, alignItems: "center" }}>{i.image_path && <img src={media + i.image_path} alt="" className="photo-thumb" /> /* eslint-disable-line @next/next/no-img-element */}<span><b>{i.name}</b>{i.option_groups.length > 0 && <small className="muted"> · {i.option_groups.map((g) => g.name).join(", ")}</small>}</span></span>
+                  <span className={i.available ? "" : "muted"} style={{ display: "flex", gap: 10, alignItems: "center" }}>{i.image_path && <img src={media + i.image_path} alt="" className="photo-thumb" /> /* eslint-disable-line @next/next/no-img-element */}<span><b>{i.name}</b>{i.option_groups.length > 0 && <small className="muted"> · {i.option_groups.map((g) => g.name).join(", ")}</small>}{i.allergens == null && <small className="alg-todo"> · allergenen nog invullen</small>}</span></span>
                   <span className="num">{eur(i.price_cents)}</span>
                   <form action={toggleItem}><H n="rid" v={rid} /><H n="id" v={i.id} /><H n="available" v={i.available ? "0" : "1"} />
                     <button className={`pill ${i.available ? "ok" : "wait"}`} style={{ border: 0, cursor: "pointer" }} title="Klik om te wisselen">{i.available ? "Beschikbaar" : "Uitverkocht"}</button></form>
@@ -287,6 +288,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
                     <label className="field">Prijs (€)<input name="price" defaultValue={fromCents(i.price_cents)} inputMode="decimal" required /></label>
                     <label className="field">Categorie<select name="cat" defaultValue={c.id}>{cats.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
                     <label className="field" style={{ gridColumn: "1/-1" }}>Omschrijving<input name="description" defaultValue={i.description ?? ""} placeholder="optioneel" /></label>
+                    <fieldset className="alg-edit" style={{ gridColumn: "1/-1" }}>
+                      <legend>Allergenen <span className="muted small">(wettelijk verplicht om te vermelden)</span></legend>
+                      <div className="alg-grid">{ALLERGENS.map((a) => <label key={a.key} className="check"><input type="checkbox" name="allergen" value={a.key} defaultChecked={i.allergens?.includes(a.key)} /> {a.label}</label>)}</div>
+                      <label className="check"><input type="checkbox" name="allergen_none" defaultChecked={Array.isArray(i.allergens) && i.allergens.length === 0} /> Bevat geen van deze 14 allergenen</label>
+                    </fieldset>
                     <label className="check"><input type="checkbox" name="available" defaultChecked={i.available} /> Beschikbaar</label>
                     <div style={{ display: "flex", gap: 8 }}><button className="btn btn-primary">Opslaan</button></div>
                   </form>

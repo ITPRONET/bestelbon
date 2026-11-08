@@ -2,7 +2,7 @@ export type Choice = { id: string; name: string; extra_cents: number; position: 
 export type Group = { id: string; name: string; multi: boolean; required: boolean; max_select?: number | null; position: number; option_choices: Choice[] };
 export type Item = {
   id: string; name: string; description: string | null; price_cents: number; available: boolean;
-  image_path: string | null; position: number; option_groups: Group[];
+  image_path: string | null; position: number; option_groups: Group[]; allergens?: string[] | null;
 };
 export type Category = { id: string; name: string; position: number; menu_items: Item[] };
 export type Restaurant = {
