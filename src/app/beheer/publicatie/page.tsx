@@ -1,6 +1,7 @@
 import PanelNav from "@/components/PanelNav";
 import { panel } from "@/lib/panel";
 import CopyField from "./CopyField";
+import Uitleg from "@/components/Uitleg";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Publicatie" };
@@ -16,7 +17,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
   return (
     <>
       <PanelNav active="publicatie" restaurants={restaurants} current={current} />
-      <h1 className="ph">Publicatie</h1>
+      <h1 className="ph">Publicatie <Uitleg video="publicatie" title="Zo maak je je bestelpagina bekend" /></h1>
       <div className="sgrid">
         <div style={{ display: "grid", gap: 16, alignContent: "start", minWidth: 0 }}>
           <section className="panel">

@@ -522,3 +522,11 @@ button:disabled,.btn:disabled,select:disabled{cursor:not-allowed}
 .pricerow{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px}
 .pricerow input{width:90px;font:inherit;text-align:right;padding:6px 8px;border:1px solid var(--line);border-radius:8px}
 .field textarea{font:inherit;width:100%;border:1px solid var(--line);border-radius:10px;padding:8px 10px;resize:vertical;background:#fff}
+
+/* Uitlegvideo's in het beheerpaneel */
+.uitleg-btn{display:inline-flex;align-items:center;gap:6px;font-size:14px;padding:6px 12px;margin-left:10px;vertical-align:middle;color:var(--ketchup,#ff6a00)}
+dialog.uitleg{border:0;border-radius:16px;padding:0;width:min(1100px,94vw);background:#0b1033;color:#fff;box-shadow:0 30px 80px rgba(0,0,0,.45)}
+dialog.uitleg::backdrop{background:rgba(11,16,51,.6)}
+.uitleg-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px 10px 18px}
+.uitleg-head .btn{color:#fff;border-color:rgba(255,255,255,.3)}
+dialog.uitleg video{display:block;width:100%;height:auto;background:#000}

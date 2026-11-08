@@ -2,6 +2,7 @@ import Link from "next/link";
 import PanelNav from "@/components/PanelNav";
 import { panel, today, addDays, longDate } from "@/lib/panel";
 import { eur } from "@/lib/money";
+import Uitleg from "@/components/Uitleg";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Verkoop" };
@@ -60,7 +61,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
   return (
     <>
       <PanelNav active="verkoop" restaurants={restaurants} current={current} />
-      <h1 className="ph">Verkoop</h1>
+      <h1 className="ph">Verkoop <Uitleg video="verkoop" title="Zo lees je je verkoopcijfers" /></h1>
       <div className="panel daybar">
         <div className="seg2">{(["dag", "week", "maand", "alles"] as const).map((x) => <Link key={x} href={link(x)} aria-current={p === x ? "page" : undefined}>{x === "alles" ? "Sinds start" : x[0].toUpperCase() + x.slice(1)}</Link>)}</div>
         {p !== "alles" && (

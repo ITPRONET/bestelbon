@@ -8,6 +8,7 @@ import { DAYS, cleanPostcode } from "@/lib/hours";
 import { adminDb } from "@/lib/supabase";
 import { disconnect as mollieDisconnect, mollieEnabled, refreshAccount, testmode } from "@/lib/mollie";
 import { addDomain, cleanDomain, domainStatus, domainsEnabled, isApex, removeDomain } from "@/lib/vercel";
+import Uitleg from "@/components/Uitleg";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Instellingen" };
@@ -201,7 +202,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
   return (
     <>
       <PanelNav active="instellingen" restaurants={restaurants} current={current} />
-      <h1 className="ph">Instellingen</h1>
+      <h1 className="ph">Instellingen <Uitleg video="instellingen" title="Alle instellingen uitgelegd" /></h1>
       {sp.ok && <div className="okmsg">Opgeslagen. Je bestelpagina is bijgewerkt.</div>}
       {sp.fout === "logo" && <div className="alert">Het logo moet een PNG, JPG of WebP van maximaal 2 MB zijn.</div>}
       <div className="sgrid">

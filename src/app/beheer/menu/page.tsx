@@ -7,6 +7,7 @@ import { eur } from "@/lib/money";
 import { toCents, fromCents } from "@/lib/euro";
 import PhotoInput from "./PhotoInput";
 import { TEMPLATES, templateFor, type TChoice } from "@/lib/menu-templates";
+import Uitleg from "@/components/Uitleg";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Menu" };
@@ -224,7 +225,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
     <>
       <PanelNav active="menu" restaurants={restaurants} current={current} />
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
-        <div><h1 className="ph">Menu</h1><p className="muted small" style={{ margin: 0 }}>Wijzigingen staan binnen een halve minuut op je bestelpagina.</p></div>
+        <div><h1 className="ph">Menu <Uitleg video="menu" title="Zo werkt je menu" /></h1><p className="muted small" style={{ margin: 0 }}>Wijzigingen staan binnen een halve minuut op je bestelpagina.</p></div>
         <form action={addCategory} className="dayform"><H n="rid" v={rid} /><label className="field">Nieuwe categorie<input name="name" placeholder="bv. Sauzen" required /></label><button className="btn btn-primary">Toevoegen</button></form>
       </div>
       {sp.voorbeeld === "al" && <div className="alert">Dit voorbeeldmenu staat al in je menu.</div>}
