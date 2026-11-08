@@ -87,6 +87,8 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
   const short = mode === "levering" ? Math.max(0, minOrder - sub) : 0;
   const inCart = (id: string) => cart.filter((l) => l.itemId === id).reduce((s, l) => s + l.qty, 0);
   const brand = plan === "pro" ? { "--brand": r.brand_primary, "--accent": r.brand_accent } : {};
+  const covers = plan === "pro" ? (r.cover_paths ?? []).slice(0, 3) : [];
+  const layout = plan === "pro" ? r.menu_layout ?? "lijst" : "lijst";
 
   function add(it: Item, choiceIds: string[], qty = 1) {
     const key = it.id + "|" + [...choiceIds].sort().join(",");
@@ -140,7 +142,12 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
 
   return (
     <div className="s-root" style={brand as React.CSSProperties}>
-      <header className="s-head">
+      <header className={`s-head${covers.length ? " s-head-cover" : ""}`}>
+        {covers.length > 0 && (
+          <div className={`s-cover n${covers.length}`} aria-hidden="true">
+            {covers.map((p, i) => <span key={p} style={{ backgroundImage: `url(${storageUrl + p})`, animationDelay: `${i * 6}s` }} />)}
+          </div>
+        )}
         <div className="wrap s-head-in">
           {plan === "pro" && r.logo_path
             ? <img className="s-logo" src={storageUrl + r.logo_path} alt="" /> // eslint-disable-line @next/next/no-img-element
@@ -183,7 +190,7 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
       )}
 
       <main className="wrap s-grid">
-        <div className="s-menu">
+        <div className={`s-menu layout-${layout}`}>
           {categories.map((c) => (
             <section className="s-cat" id={"cat-" + c.id} key={c.id}>
               <h2>{c.name}</h2>

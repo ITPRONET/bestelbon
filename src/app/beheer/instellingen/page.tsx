@@ -53,6 +53,29 @@ async function saveBrand(f: FormData) {
   redirect(`/beheer/instellingen?zaak=${data?.slug ?? ""}&ok=1`);
 }
 
+/** Pro: headerfoto's (max. 3) en menuweergave. */
+async function saveLook(f: FormData) {
+  "use server";
+  const db = await userDb();
+  const rid = s(f, "rid");
+  if (!(await proRestaurant(rid))) redirect("/beheer/instellingen");
+  const { data: cur } = await db.from("restaurants").select("cover_paths").eq("id", rid).maybeSingle();
+  const drop = new Set(f.getAll("cover_remove").map(String));
+  let covers = ((cur?.cover_paths as string[] | null) ?? []).filter((p) => !drop.has(p));
+  for (const file of f.getAll("covers")) {
+    if (!(file instanceof File) || !file.size) continue;
+    if (covers.length >= 3) break;
+    if (file.size > 4 * 1024 * 1024 || !/^image\/(png|jpeg|webp)$/.test(file.type)) redirect(`/beheer/instellingen?fout=cover`);
+    const path = `${rid}/cover-${Date.now()}-${covers.length}.${file.type.split("/")[1]}`;
+    const { error } = await db.storage.from("zaak-media").upload(path, file, { contentType: file.type, upsert: false });
+    if (!error) covers = [...covers, path];
+  }
+  const layout = ["lijst", "raster", "kaart"].includes(s(f, "layout")) ? s(f, "layout") : "lijst";
+  const { data } = await db.from("restaurants").update({ cover_paths: covers.slice(0, 3), menu_layout: layout }).eq("id", rid).select("slug").single();
+  if (data) revalidatePath(`/${data.slug}`);
+  redirect(`/beheer/instellingen?zaak=${data?.slug ?? ""}&ok=1#uitzicht`);
+}
+
 /** Owner of this restaurant on the Pro plan? (RLS decides membership.) */
 async function proRestaurant(rid: string) {
   const db = await userDb();
@@ -205,6 +228,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
       <h1 className="ph">Instellingen <Uitleg video="instellingen" title="Alle instellingen uitgelegd" /></h1>
       {sp.ok && <div className="okmsg">Opgeslagen. Je bestelpagina is bijgewerkt.</div>}
       {sp.fout === "logo" && <div className="alert">Het logo moet een PNG, JPG of WebP van maximaal 2 MB zijn.</div>}
+      {sp.fout === "cover" && <div className="alert">Een headerfoto moet een PNG, JPG of WebP van maximaal 4 MB zijn.</div>}
       <div className="sgrid">
         <form action={saveZaak} className="panel" style={{ display: "grid", gap: 12, alignContent: "start" }}>
           <input type="hidden" name="rid" value={r.id} />
@@ -252,6 +276,46 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
           )}
         </section>
       </div>
+
+      <section className="panel" id="uitzicht" style={{ display: "grid", gap: 14 }}>
+        <h2 className="h2">Uitzicht van je bestelpagina <span className="pill">{pro ? "Pro" : "Pro-functie"}</span></h2>
+        {pro ? (
+          <form action={saveLook} style={{ display: "grid", gap: 16 }}>
+            <input type="hidden" name="rid" value={r.id} />
+            <div style={{ display: "grid", gap: 8 }}>
+              <b>Headerfoto&apos;s <span className="muted small">(max. 3, liggend, wisselen elkaar af)</span></b>
+              {(r.cover_paths ?? []).length > 0 && (
+                <div className="cover-list">
+                  {(r.cover_paths as string[]).map((p) => (
+                    <label key={p} className="cover-item">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={storage + p} alt="" />
+                      <span className="check small"><input type="checkbox" name="cover_remove" value={p} /> Verwijderen</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              {(r.cover_paths ?? []).length < 3 && <label className="field">Foto&apos;s toevoegen (PNG, JPG of WebP, max. 4 MB per foto)<input type="file" name="covers" multiple accept="image/png,image/jpeg,image/webp" /></label>}
+              <span className="muted small">Tip: je zaak van buiten, je frieten in close-up, je team achter de toonbank.</span>
+            </div>
+            <div style={{ display: "grid", gap: 8 }}>
+              <b>Menuweergave</b>
+              <div className="layout-pick">
+                {([["lijst", "Lijst", "Overzichtelijk, met kleine foto rechts."], ["raster", "Fotoraster", "Grote foto's in tegels. Ideaal als je mooie foto's hebt."], ["kaart", "Menukaart", "Zoals je kaart aan de muur: compact, prijzen op één lijn."]] as const).map(([k, l, t]) => (
+                  <label key={k} className={`layout-opt lo-${k}`}>
+                    <input type="radio" name="layout" value={k} defaultChecked={(r.menu_layout ?? "lijst") === k} />
+                    <span className="lo-prev" aria-hidden="true"><i /><i /><i /><i /></span>
+                    <b>{l}</b><small className="muted">{t}</small>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div><button className="btn btn-primary">Opslaan</button></div>
+          </form>
+        ) : (
+          <p className="muted" style={{ margin: 0 }}>Met Pro zet je tot 3 eigen foto&apos;s bovenaan je bestelpagina en kies je uit 3 menuweergaven: lijst, fotoraster of menukaart. Vraag het aan via info@bestelbon.eu.</p>
+        )}
+      </section>
       <section className="panel" id="betalen" style={{ display: "grid", gap: 12 }}>
         <h2 className="h2">Online betalen <span className="pill">Mollie</span></h2>
         {sp.mollie && MOLLIE_MSG[sp.mollie] && <div className={MOLLIE_MSG[sp.mollie][0]} style={{ margin: 0 }}>{MOLLIE_MSG[sp.mollie][1]}</div>}
