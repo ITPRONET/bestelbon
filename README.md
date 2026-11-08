@@ -14,3 +14,9 @@ Zie `.env.example`. `SUPABASE_SERVICE_ROLE_KEY` is geheim en hoort alleen in Ver
 
 ## Database
 Supabase project `Bestelbon` (eu-central-1). Schema en RLS worden beheerd via migraties in Supabase.
+
+## Deployment
+Commits op `main` worden via de Vercel Git-integratie naar Production gebouwd. De productiedomeinen worden automatisch toegewezen na een geslaagde build.
+
+Na wijzigingen aan omgevingsvariabelen is een nieuwe deployment nodig. Abonnementsbetalingen gebruiken `MOLLIE_API_KEY_2`; de oude variabele `MOLLIE_API_KEY` wordt niet gebruikt.
+
