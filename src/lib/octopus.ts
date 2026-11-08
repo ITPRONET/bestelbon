@@ -32,8 +32,9 @@ async function req<T = unknown>(path: string, o: { method?: string; headers?: Re
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   if (!res.ok) {
     const d = data as { message?: string; error?: string; title?: string } | null;
-    const msg = (d && typeof d === "object" && (d.message || d.error || d.title)) || (typeof data === "string" && data) || `HTTP ${res.status}`;
-    throw new OctoError(`Octopus ${path.split("?")[0]}: ${String(msg).slice(0, 300)}`, res.status, Number(res.headers.get("retry-after")) || 0);
+    const raw = typeof data === "string" ? data : data ? JSON.stringify(data) : "";
+    const msg = (d && typeof d === "object" && (d.message || d.error || d.title)) || raw || `HTTP ${res.status}`;
+    throw new OctoError(`Octopus ${path.split("?")[0]}: HTTP ${res.status} ${String(msg).slice(0, 400)}`, res.status, Number(res.headers.get("retry-after")) || 0);
   }
   return data as T;
 }
@@ -151,7 +152,8 @@ export async function syncInvoiceToOctopus(invoiceId: string, opts: { force?: bo
         ...(hasVat ? { vatNr: v.compact } : {}),
         vatType: hasVat ? (country === "BE" ? 1 : 4) : country === "BE" ? 7 : 8,
         factLanguage: country === "FR" ? 1 : country === "DE" ? 3 : 0,
-        invoiceDeliveryMethod: peppol ? 3 : 1,
+        // Zoals Hotelize: standaard e-mail; bij het versturen kiest Octopus zelf Peppol als de klant daar geregistreerd is.
+        invoiceDeliveryMethod: 1,
         ...(peppol ? { participantId: `0208:${v.digits}` } : {}),
         active: true,
       };
