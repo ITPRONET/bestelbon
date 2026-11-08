@@ -20,6 +20,13 @@ const nextConfig: NextConfig = {
       { source: "/:slug", headers: common },
     ];
   },
+  // Korte link voor flyers en video's: bestelbon.eu/videos -> uitlegvideo's op de WordPress-pagina Ondersteuning.
+  async redirects() {
+    return [
+      { source: "/videos", destination: "/ondersteuning/#videos", permanent: false },
+      { source: "/video", destination: "/ondersteuning/#videos", permanent: false },
+    ];
+  },
   serverExternalPackages: ["@resvg/resvg-js"],
   outputFileTracingIncludes: {
     "/api/cloudprnt/[token]": ["./src/assets/fonts/**"],
