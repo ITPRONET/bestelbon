@@ -27,6 +27,44 @@ function loadFonts() {
 const money = (c: number) => (c / 100).toFixed(2).replace(".", ",");
 const time = (iso: string) => new Date(iso).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Brussels" });
 const paid = (o: TicketOrder) => o.payment_method === "online" && o.payment_status === "betaald";
+/** Pro: het logo van de zaak bovenaan de klantenbon. Grijswaarden + Floyd-Steinberg, zodat ook een kleurenlogo
+ *  netjes zwart-wit print. Gecachet per pad (een nieuw logo krijgt een nieuw pad). */
+const logoCache = new Map<string, Promise<string | null>>();
+export function ticketLogo(logoPath: string | null | undefined): Promise<string | null> {
+  if (!logoPath) return Promise.resolve(null);
+  let p = logoCache.get(logoPath);
+  if (!p) {
+    p = (async () => {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/zaak-media/${logoPath}`);
+        if (!res.ok) return null;
+        const sharp = (await import("sharp")).default;
+        const { data, info } = await sharp(Buffer.from(await res.arrayBuffer()))
+          .flatten({ background: "#ffffff" })
+          .resize({ width: 380, height: 150, fit: "inside", withoutEnlargement: false })
+          .grayscale().normalise().raw().toBuffer({ resolveWithObject: true });
+        const w = info.width, h = info.height, g = new Float32Array(data.length);
+        for (let i = 0; i < data.length; i++) g[i] = data[i];
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+          const i = y * w + x, old = g[i], nw = old < 128 ? 0 : 255, err = old - nw;
+          g[i] = nw;
+          if (x + 1 < w) g[i + 1] += err * 7 / 16;
+          if (y + 1 < h) { if (x > 0) g[i + w - 1] += err * 3 / 16; g[i + w] += err * 5 / 16; if (x + 1 < w) g[i + w + 1] += err / 16; }
+        }
+        const out = Buffer.alloc(w * h); for (let i = 0; i < out.length; i++) out[i] = g[i] < 128 ? 0 : 255;
+        const png = await sharp(out, { raw: { width: w, height: h, channels: 1 } }).png().toBuffer();
+        return `data:image/png;base64,${png.toString("base64")}|${w}x${h}`;
+      } catch (e) {
+        console.error("ticket logo", e);
+        return null;
+      }
+    })();
+    logoCache.set(logoPath, p);
+    p.then((v) => { if (!v) logoCache.delete(logoPath); });
+  }
+  return p;
+}
+
 const svgUri = (svg: string) => `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 
 const LOGO = svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M7 3h18v24l-3-2-3 2-3-2-3 2-3-2-3 2V3z" fill="#fff" stroke="#000" stroke-width="2" stroke-linejoin="round"/><path d="M11 9h10M11 13h10M11 17h6" stroke="#000" stroke-width="2" stroke-linecap="round"/><circle cx="23.5" cy="23.5" r="6" fill="#000"/><path d="M21 23.6l1.7 1.7 3-3.2" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`);
@@ -114,9 +152,16 @@ function Kitchen({ name, o, lines }: { name: string; o: TicketOrder; lines: Tick
   );
 }
 
-function Delivery({ name, o, lines, qr }: { name: string; o: TicketOrder; lines: TicketLine[]; qr: string | null }) {
+function Logo({ logo }: { logo: string }) {
+  const [src, size] = logo.split("|");
+  const [w, h] = size.split("x").map(Number);
+  return <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}><img src={src} width={w} height={h} alt="" /></div>; // eslint-disable-line @next/next/no-img-element
+}
+
+function Delivery({ name, o, lines, qr, logo }: { name: string; o: TicketOrder; lines: TicketLine[]; qr: string | null; logo?: string | null }) {
   return (
     <Paper>
+      {logo && <Logo logo={logo} />}
       <Bar text={o.mode === "levering" ? "BEZORGING" : "AFHALEN"} size={30} />
       <Center size={26} style={{ marginTop: 6 }}>{name}</Center>
       <Center size={104} weight={700} style={{ lineHeight: 1.05, margin: "4px 0" }}>{`#${o.day_number}`}</Center>
@@ -214,18 +259,18 @@ export async function routeQr(o: TicketOrder) {
   return svgUri(svg);
 }
 
-export async function ticketPng(kind: "keuken" | "bezorging", name: string, o: TicketOrder, lines: TicketLine[]) {
+export async function ticketPng(kind: "keuken" | "bezorging", name: string, o: TicketOrder, lines: TicketLine[], logo: string | null = null) {
   return kind === "bezorging"
-    ? render(<Delivery name={name} o={o} lines={lines} qr={await routeQr(o)} />)
+    ? render(<Delivery name={name} o={o} lines={lines} qr={await routeQr(o)} logo={logo} />)
     : render(<Kitchen name={name} o={o} lines={lines} />);
 }
 
 /** StarPRNT: several tickets in ONE print job, each followed by a cut (no pause between tickets).
  *  ESC @ init · ESC GS S raster image (m=1, x bytes, y lines, n=0) · ESC d 2 feed + full cut. */
-export async function ticketsStarPrnt(tickets: { kind: "keuken" | "bezorging"; name: string; o: TicketOrder; lines: TicketLine[] }[]) {
+export async function ticketsStarPrnt(tickets: { kind: "keuken" | "bezorging"; name: string; o: TicketOrder; lines: TicketLine[]; logo?: string | null }[]) {
   const parts: Buffer[] = [Buffer.from([0x1b, 0x40])];
   for (const t of tickets) {
-    const el = t.kind === "bezorging" ? <Delivery name={t.name} o={t.o} lines={t.lines} qr={await routeQr(t.o)} /> : <Kitchen name={t.name} o={t.o} lines={t.lines} />;
+    const el = t.kind === "bezorging" ? <Delivery name={t.name} o={t.o} lines={t.lines} qr={await routeQr(t.o)} logo={t.logo} /> : <Kitchen name={t.name} o={t.o} lines={t.lines} />;
     const b = await bitmap(el);
     for (let y0 = 0; y0 < b.h; y0 += 256) { // in blokken, zodat de printerbuffer klein blijft
       const n = Math.min(256, b.h - y0);

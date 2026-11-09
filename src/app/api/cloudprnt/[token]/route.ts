@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { adminDb } from "@/lib/supabase";
 import { kitchenTicket, deliveryTicket, type TicketOrder, type TicketLine } from "@/lib/ticket";
-import { ticketPng, testPng, ticketsStarPrnt } from "@/lib/ticket-image";
+import { ticketPng, testPng, ticketsStarPrnt, ticketLogo } from "@/lib/ticket-image";
 import { after } from "next/server";
 import { sendOrderReceived } from "@/lib/order-mail";
 
@@ -78,19 +78,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
     return new NextResponse(text, { headers: { "Content-Type": "text/plain; charset=utf-8", "X-Star-Cut": "full; feed=true", "Cache-Control": "no-store" } });
   }
   const { data: o } = await db.from("orders")
-    .select("day_number, created_at, mode, requested_time, payment_method, payment_status, total_cents, delivery_fee_cents, customer_name, customer_phone, address, postcode, city, note, discount_cents, loyalty_note, restaurants ( name )")
+    .select("day_number, created_at, mode, requested_time, payment_method, payment_status, total_cents, delivery_fee_cents, customer_name, customer_phone, address, postcode, city, note, discount_cents, loyalty_note, restaurants ( name, logo_path, companies ( plan ) )")
     .eq("id", job.order_id).single();
   const { data: lines } = await db.from("order_lines").select("item_name, options, qty, unit_cents").eq("order_id", job.order_id).order("id");
   if (!o) return new NextResponse("Gone", { status: 410 });
 
   const late = Date.now() - new Date(job.created_at).getTime() > LATE_MS;
-  const name = (o.restaurants as unknown as { name: string } | null)?.name ?? "";
+  const rest = o.restaurants as unknown as { name: string; logo_path: string | null; companies: { plan: string } | null } | null;
+  const name = rest?.name ?? "";
+  // Pro: logo van de zaak bovenaan de klantenbon (niet op de keukenbon).
+  const logo = rest?.companies?.plan === "pro" ? await ticketLogo(rest.logo_path) : null;
   const order = { ...(o as unknown as TicketOrder), late };
   const ls = (lines ?? []) as TicketLine[];
 
   if (asked === STARPRNT) {
     const batch = await batchOf(p.id, job);
-    const data = await ticketsStarPrnt(batch.map((j) => ({ kind: j.kind === "bezorging" ? "bezorging" as const : "keuken" as const, name, o: order, lines: ls })));
+    const data = await ticketsStarPrnt(batch.map((j) => ({ kind: j.kind === "bezorging" ? "bezorging" as const : "keuken" as const, name, o: order, lines: ls, logo })));
     const now = new Date().toISOString();
     for (const j of batch) await db.from("print_jobs").update({ status: "opgehaald", fetched_at: now, attempts: j.attempts + 1, media: "starprnt" }).eq("id", j.id);
     if (late) await db.from("orders").update({ late_print: true }).eq("id", job.order_id);
@@ -98,7 +101,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   }
   const body = asText
     ? (job.kind === "bezorging" ? deliveryTicket(name, order, ls) : kitchenTicket(name, order, ls))
-    : new Uint8Array(await ticketPng(job.kind === "bezorging" ? "bezorging" : "keuken", name, order, ls));
+    : new Uint8Array(await ticketPng(job.kind === "bezorging" ? "bezorging" : "keuken", name, order, ls, logo));
 
   await db.from("print_jobs").update({ status: "opgehaald", fetched_at: new Date().toISOString(), attempts: job.attempts + 1, media: asText ? "text" : "png" }).eq("id", job.id);
   if (late) await db.from("orders").update({ late_print: true }).eq("id", job.order_id);
