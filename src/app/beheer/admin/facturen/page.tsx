@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import AdminNav from "@/components/AdminNav";
-import { adminOnly, PLAN } from "@/lib/admin";
+import { adminOnly } from "@/lib/admin";
 import { eur } from "@/lib/money";
-import { today } from "@/lib/panel";
 import { PEPPOL, periodLabel, shortDate, shownStatus, STATUS } from "@/lib/invoice";
-import { discountLine, yearLines } from "@/lib/pricing";
+import { createDueInvoices } from "@/lib/subscription";
 import { unblockIfPaid } from "@/lib/billing";
 import { after } from "next/server";
 import { octopusEnabled, syncInvoiceToOctopus } from "@/lib/octopus";
@@ -15,46 +14,11 @@ export const metadata = { title: "Facturen" };
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
-async function monthly(f: FormData) {
+async function monthly() {
   "use server";
-  const db = await adminOnly();
-  const period = s(f, "period");
-  if (!/^\d{4}-\d{2}$/.test(period)) redirect("/beheer/admin/facturen?fout=maand");
-  const first = `${period}-01`;
-  const last = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)), 0)).toISOString().slice(0, 10);
-  const [{ data: cos }, { data: done }, { data: prices }] = await Promise.all([
-    db.from("companies").select("id, plan, billing, started_on, ended_on, free_until, discount_pct, discount_until, discount_note").in("status", ["actief", "achterstallig"]).lte("started_on", last),
-    db.from("invoices").select("company_id").eq("period", period),
-    db.from("prices").select("key, cents"),
-  ]);
-  const have = new Set((done ?? []).map((d) => d.company_id));
-  let n = 0;
-  for (const c of cos ?? []) {
-    if (have.has(c.id) || (c.ended_on && c.ended_on < first)) continue;
-    const cents = prices?.find((p) => p.key === c.plan)?.cents ?? 0;
-    const discountOn = (d: string) => c.discount_pct > 0 && (!c.discount_until || d <= c.discount_until);
-    // Gratis maand(en): geen maandfactuur zolang de maand binnen "gratis t/m" valt.
-    if (c.billing !== "jaar" && c.free_until && first <= c.free_until) continue;
-    let lines: { description: string; qty: number; unit_cents: number }[] = [{ description: `Abonnement BestelBon ${PLAN[c.plan]} – ${periodLabel(period)}`, qty: 1, unit_cents: cents }];
-    if (discountOn(first)) lines.push(...discountLine(c.discount_pct, cents, c.discount_note));
-    if (c.billing === "jaar") {
-      // Jaarlijks vooraf: één factuur per 12 maanden, in de maand waarin het abonnement startte.
-      if (c.started_on.slice(5, 7) !== period.slice(5, 7)) continue;
-      const end = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)) + 10, 1)).toISOString().slice(0, 7);
-      lines = yearLines(PLAN[c.plan], cents, periodLabel(period), periodLabel(end));
-      // Gratis maanden binnen dit jaar: als korting op de jaarfactuur.
-      let free = 0;
-      for (let k = 0; k < 12; k++) {
-        const m = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)) - 1 + k, 1)).toISOString().slice(0, 10);
-        if (c.free_until && m <= c.free_until) free++;
-      }
-      if (free) lines.push({ description: `${free} maand${free > 1 ? "en" : ""} gratis abonnement`, qty: -free, unit_cents: cents });
-      if (discountOn(first)) lines.push(...discountLine(c.discount_pct, cents * (12 - free), c.discount_note));
-    }
-    const { error } = await db.rpc("create_invoice", { p_company: c.id, p_period: period, p_lines: lines });
-    if (!error) n++;
-  }
-  redirect(`/beheer/admin/facturen?gemaakt=${n}&maand=${period}`);
+  await adminOnly();
+  const n = await createDueInvoices();
+  redirect(`/beheer/admin/facturen?gemaakt=${n}`);
 }
 
 const OCTO: Record<string, string> = { bezig: "bezig…", aangemaakt: "aangemaakt, nog niet verstuurd", peppol_bezig: "via Peppol onderweg", peppol_ok: "afgeleverd via Peppol", email_ok: "per e-mail verstuurd", test_niet_verstuurd: "testmodus (niet verstuurd)", fout: "fout", nul_bedrag: "€ 0, overgeslagen" };
@@ -92,22 +56,19 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
   if (sp.maand && /^\d{4}-\d{2}$/.test(sp.maand)) q = q.gte("issued_on", `${sp.maand}-01`).lt("issued_on", new Date(Date.UTC(Number(sp.maand.slice(0, 4)), Number(sp.maand.slice(5, 7)), 1)).toISOString().slice(0, 10));
   const { data: all } = await q;
   const list = (all ?? []).filter((i) => !sp.status || shownStatus(i) === sp.status);
-  const t = today();
-  const next = new Date(Date.UTC(Number(t.slice(0, 4)), Number(t.slice(5, 7)), 1)).toISOString().slice(0, 7);
   const sum = (st: string) => list.filter((i) => shownStatus(i) === st).reduce((a, i) => a + i.total_cents, 0);
   return (
     <>
       <AdminNav active="facturen" />
       <h1 className="ph">Facturen <Link href="/beheer/admin/octopus" className="pill" style={{ fontSize: 13, verticalAlign: "middle" }}>Octopus{octopusEnabled() ? "" : " (uit)"}</Link></h1>
-      {sp.gemaakt && <div className="okmsg">{sp.gemaakt === "0" ? "Geen nieuwe maandfacturen: alles voor deze maand is al gefactureerd." : `${sp.gemaakt} maandfacturen gemaakt.`}</div>}
+      {sp.gemaakt && <div className="okmsg">{sp.gemaakt === "0" ? "Geen nieuwe betaalverzoeken: alle lopende periodes zijn al gefactureerd." : `${sp.gemaakt} betaalverzoeken gemaakt en gemaild.`}</div>}
       {sp.fout && <div className="alert">Kies een geldige maand.</div>}
       <div className="sgrid">
         <form action={monthly} className="panel" style={{ display: "grid", gap: 10 }}>
-          <h2 className="h2">Maandfacturen abonnementen</h2>
-          <p className="muted small" style={{ margin: 0 }}>Maakt één factuur per actief abonnement voor de gekozen maand. Klanten met jaarlijkse betaling krijgen een jaarfactuur (10% korting) in hun startmaand. Wat al gefactureerd is, wordt overgeslagen.</p>
+          <h2 className="h2">Abonnementen</h2>
+          <p className="muted small" style={{ margin: 0 }}>Elke dag om 8 uur maakt het systeem vanzelf een betaalverzoek voor elke zaak waarvan een nieuwe periode begint, op de dag van de startdatum (start op de 20e = elke 20e; jaarlijks = elk jaar op die dag, met 10% korting). De zaak krijgt het meteen per e-mail: met betaalknop, of met de aankondiging van de domiciliëring. Wat al gefactureerd is, wordt overgeslagen.</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <input type="month" name="period" defaultValue={next} className="inp" aria-label="Maand" />
-            <button className="btn btn-primary">Maandfacturen maken</button>
+            <button className="btn btn-primary">Nu controleren en aanmaken</button>
           </div>
         </form>
         <div className="kpis" style={{ gridTemplateColumns: "repeat(3,minmax(0,1fr))" }}>
