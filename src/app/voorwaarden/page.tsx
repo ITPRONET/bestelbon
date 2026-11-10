@@ -39,7 +39,7 @@ export default async function Page() {
       </ul>
 
       <h2>6. Duur en opzegging</h2>
-      <p>Het abonnement loopt voor onbepaalde duur en is maandelijks opzegbaar per e-mail naar info@bestelbon.eu, met een opzegtermijn van één maand, tenzij de offerte een minimale looptijd vermeldt. Betaalde maanden worden niet terugbetaald. Na het einde gaat de bestelpagina offline en worden de gegevens verwijderd zoals in de <Link href="/verwerkersovereenkomst">verwerkersovereenkomst</Link> staat.</p>
+      <p>Het abonnement loopt voor onbepaalde duur en wordt maandelijks of jaarlijks vooraf betaald. De zaak kan op elk moment opzeggen per e-mail naar info@bestelbon.eu, tenzij de offerte een minimale looptijd vermeldt. De opzegging gaat in op het einde van de periode die al betaald is: bij maandelijkse betaling op het einde van die maand, bij jaarlijkse betaling op het einde van dat jaar. Tot dan blijft de bestelpagina gewoon werken. Betaalde periodes worden niet terugbetaald. Na het einde gaat de bestelpagina offline en worden de gegevens verwijderd zoals in de <Link href="/verwerkersovereenkomst">verwerkersovereenkomst</Link> staat.</p>
 
       <h2>7. Verantwoordelijkheid van de zaak</h2>
       <ul>
