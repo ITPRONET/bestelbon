@@ -307,7 +307,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
             <label className="field">Pakket<select name="plan" defaultValue={co.plan}><option value="standaard">Standaard</option><option value="pro">Pro</option></select></label>
             <label className="field">Betaling<select name="billing" defaultValue={co.billing}><option value="maand">Maandelijks</option><option value="jaar">Jaarlijks vooraf (−10%)</option></select></label>
             <label className="field">Status<select name="status" defaultValue={co.status}>{Object.entries(CO_STATUS).map(([k, [l]]) => <option key={k} value={k}>{l}</option>)}</select></label>
-            <label className="field">Start<input type="date" name="started_on" defaultValue={co.started_on} /></label>
+            <label className="field">Start (wordt automatisch de dag van de eerste bestelling na installatie)<input type="date" name="started_on" defaultValue={co.started_on} /></label>
             <label className="field">Einde<input type="date" name="ended_on" defaultValue={co.ended_on ?? ""} /></label>
           </div>
           <div><button className="btn btn-primary">Opslaan</button></div>

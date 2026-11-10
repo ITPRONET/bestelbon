@@ -1,4 +1,5 @@
-// Abonnementsfacturen per verjaardag van de startdatum: wie start op de 20e, betaalt elke 20e (of elk jaar op die dag).
+// Abonnementsfacturen per verjaardag van de startdag: de dag van de eerste echte bestelling na de installatie.
+// Wie start op de 20e, betaalt elke 20e (of elk jaar op die dag).
 import { adminDb } from "./supabase";
 import { today } from "./panel";
 import { PLAN } from "./admin";
@@ -38,16 +39,38 @@ export function cycleEnd(start: string, startedOn: string, billing: string) {
 
 type Co = { id: string; plan: string; billing: string; started_on: string; ended_on: string | null; free_until: string | null; discount_pct: number; discount_until: string | null; discount_note: string | null; email: string; legal_name: string; mandate_status: string | null; mandate_label: string | null };
 
+const brusselsDay = (ts: string) => new Date(ts).toLocaleDateString("sv-SE", { timeZone: "Europe/Brussels" });
+
+/**
+ * Startdag van de facturatie: de dag waarop de eerste echte bestelling geprint werd, ná de dag dat de admin
+ * de installatie als "geïnstalleerd" (geleverd) markeerde. Testafdrukken en testbestellingen ervoor tellen niet.
+ * Wordt bewaard in companies.started_on; zonder zo'n bestelling: nog geen facturatie.
+ */
+async function billingStart(companyId: string, current: string | null) {
+  const db = adminDb();
+  const { data: inst } = await db.from("installations").select("done_on").eq("company_id", companyId).eq("status", "geinstalleerd").not("done_on", "is", null).order("done_on", { ascending: true }).limit(1).maybeSingle();
+  if (!inst?.done_on) return null;
+  const { data: o } = await db.from("orders").select("printed_at, restaurants!inner ( company_id )").eq("restaurants.company_id", companyId)
+    .not("printed_at", "is", null).gte("printed_at", `${inst.done_on}T00:00:00+01:00`).order("printed_at", { ascending: true }).limit(1).maybeSingle();
+  if (!o?.printed_at) return null;
+  const day = brusselsDay(o.printed_at);
+  if (day !== current) await db.from("companies").update({ started_on: day }).eq("id", companyId);
+  return day;
+}
+
 /** Maakt de betaalverzoeken voor alle abonnementen waarvan vandaag (of eerder, nog niet gefactureerd) een nieuwe periode begint. */
 export async function createDueInvoices(on = today()) {
   const db = adminDb();
   const [{ data: cos }, { data: prices }] = await Promise.all([
-    db.from("companies").select("id, plan, billing, started_on, ended_on, free_until, discount_pct, discount_until, discount_note, email, legal_name, mandate_status, mandate_label").in("status", ["actief", "achterstallig"]).lte("started_on", on),
+    db.from("companies").select("id, plan, billing, started_on, ended_on, free_until, discount_pct, discount_until, discount_note, email, legal_name, mandate_status, mandate_label").in("status", ["actief", "achterstallig"]),
     db.from("prices").select("key, cents"),
   ]);
   let n = 0;
   for (const c of (cos ?? []) as Co[]) {
     try {
+      const anchor = await billingStart(c.id, c.started_on);
+      if (!anchor) continue; // nog geen echte bestelling geprint na de installatie
+      c.started_on = anchor;
       const start = cycleStart(c.started_on, c.billing, on);
       if (!start || (c.ended_on && c.ended_on < start)) continue;
       const period = start.slice(0, 7);

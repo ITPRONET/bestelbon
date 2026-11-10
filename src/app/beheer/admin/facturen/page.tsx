@@ -66,7 +66,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
       <div className="sgrid">
         <form action={monthly} className="panel" style={{ display: "grid", gap: 10 }}>
           <h2 className="h2">Abonnementen</h2>
-          <p className="muted small" style={{ margin: 0 }}>Elke dag om 8 uur maakt het systeem vanzelf een betaalverzoek voor elke zaak waarvan een nieuwe periode begint, op de dag van de startdatum (start op de 20e = elke 20e; jaarlijks = elk jaar op die dag, met 10% korting). De zaak krijgt het meteen per e-mail: met betaalknop, of met de aankondiging van de domiciliëring. Wat al gefactureerd is, wordt overgeslagen.</p>
+          <p className="muted small" style={{ margin: 0 }}>Elke dag om 8 uur maakt het systeem vanzelf een betaalverzoek voor elke zaak waarvan een nieuwe periode begint. De startdag is de dag van de eerste echte bestelling die geprint werd ná de installatie (markeer de installatie als "Geïnstalleerd" bij levering; tests ervoor tellen niet). Start op de 20e = elke 20e; jaarlijks = elk jaar op die dag, met 10% korting. De zaak krijgt het meteen per e-mail: met betaalknop, of met de aankondiging van de domiciliëring. Wat al gefactureerd is, wordt overgeslagen.</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="btn btn-primary">Nu controleren en aanmaken</button>
           </div>
