@@ -32,6 +32,9 @@ async function nextJob(printerId: string) {
 const STARPRNT = "application/vnd.star.starprnt";
 
 /** All waiting tickets of the same order for this printer (kitchen first), so they print as one job. */
+/** Grootste StarPRNT-opdracht die we in één keer sturen; de mC-Print3 weigerde ~800 kB met 521 (Job too large). */
+const MAX_JOB_BYTES = 300_000;
+
 async function batchOf(printerId: string, job: { id: string; order_id: string | null }) {
   if (!job.order_id) return [];
   const { data } = await adminDb().from("print_jobs").select("id, order_id, kind, attempts, created_at")
@@ -93,9 +96,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
 
   if (asked === STARPRNT) {
     const batch = await batchOf(p.id, job);
-    const data = await ticketsStarPrnt(batch.map((j) => ({ kind: j.kind === "bezorging" ? "bezorging" as const : "keuken" as const, name, o: order, lines: ls, logo })));
+    const spec = (j: { kind: string }) => ({ kind: j.kind === "bezorging" ? "bezorging" as const : "keuken" as const, name, o: order, lines: ls, logo });
+    let serve = batch;
+    let data = await ticketsStarPrnt(batch.map(spec));
+    if (data.length > MAX_JOB_BYTES) {
+      // Grote bestelling: de printer weigert te grote opdrachten (521 Job too large). Eén bon per opdracht,
+      // en past zelfs één bon niet, dan als tekst (enkele kB) in plaats van als afbeelding.
+      serve = [batch[0]];
+      data = await ticketsStarPrnt([spec(batch[0])]);
+      if (data.length > MAX_JOB_BYTES) {
+        const text = batch[0].kind === "bezorging" ? deliveryTicket(name, order, ls) : kitchenTicket(name, order, ls);
+        data = Buffer.concat([Buffer.from([0x1b, 0x40]), Buffer.from(text.replace(/\r?\n/g, "\n"), "latin1"), Buffer.from("\n\n\n"), Buffer.from([0x1b, 0x64, 0x02])]);
+      }
+      console.log(`cloudprnt groot: ${batch.length} bonnen apart, ${data.length} bytes`);
+    }
     const now = new Date().toISOString();
-    for (const j of batch) await db.from("print_jobs").update({ status: "opgehaald", fetched_at: now, attempts: j.attempts + 1, media: "starprnt" }).eq("id", j.id);
+    for (const j of serve) await db.from("print_jobs").update({ status: "opgehaald", fetched_at: now, attempts: j.attempts + 1, media: "starprnt" }).eq("id", j.id);
     if (late) await db.from("orders").update({ late_print: true }).eq("id", job.order_id);
     return new NextResponse(new Uint8Array(data), { headers: { "Content-Type": STARPRNT, "Cache-Control": "no-store" } });
   }
