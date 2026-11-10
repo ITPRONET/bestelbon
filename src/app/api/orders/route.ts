@@ -22,14 +22,27 @@ const Body = z.object({
   city: z.string().trim().max(60).optional(),
   note: z.string().trim().max(200).optional(),
   loyalty: z.object({ join: z.boolean(), redeem: z.boolean().default(false), code: z.string().trim().max(8).optional() }).optional(),
-  lines: z.array(z.object({ itemId: z.string().uuid(), choiceIds: z.array(z.string().uuid()).max(60), qty: z.number().int().min(1).max(50) })).min(1).max(40),
+  lines: z.array(z.object({ itemId: z.string().uuid(), choiceIds: z.array(z.string().uuid()).max(100), qty: z.number().int().min(1).max(99) })).min(1).max(200),
 });
 
 const PRINTER_TIMEOUT_MS = 2 * 60 * 1000;
 
 export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: "Controleer je gegevens en probeer opnieuw." }, { status: 400 });
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.code}`);
+    console.warn("order validatie", issues.join(" | "));
+    const field = String(parsed.error.issues[0]?.path[0] ?? "");
+    const msg: Record<string, string> = {
+      name: "Vul je naam in (minstens 2 letters).",
+      phone: "Vul een geldig telefoonnummer in.",
+      email: "Vul een geldig e-mailadres in.",
+      address: "Je adres is te lang.",
+      note: "Je opmerking is te lang (max. 200 tekens).",
+      lines: "Je bestelling is te groot om online te plaatsen. Bel de zaak, of splits ze in twee bestellingen.",
+    };
+    return NextResponse.json({ error: msg[field] ?? "Controleer je gegevens en probeer opnieuw." }, { status: 400 });
+  }
   const b = parsed.data;
   if (b.mode === "levering" && (!b.address || !b.postcode || !b.city)) {
     return NextResponse.json({ error: "Vul je adres in voor levering." }, { status: 400 });
