@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import CookieNotice from "@/components/CookieNotice";
 
 export const metadata: Metadata = {
   title: { default: "BestelBon", template: "%s · BestelBon" },
@@ -10,7 +11,7 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1, view
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="nl-BE">
-      <body>{children}</body>
+      <body>{children}<CookieNotice /></body>
     </html>
   );
 }

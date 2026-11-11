@@ -51,7 +51,7 @@ export async function middleware(req: NextRequest) {
   // Pro: the restaurant's own domain (e.g. bestellen.frituurdekroon.be) shows its ordering page.
   if (!MAIN_HOSTS.includes(host) && !host.endsWith(".vercel.app") && !host.startsWith("localhost")) {
     const slug = await slugForDomain(host);
-    if (slug && first !== slug && !["_next", "api", "privacy", "voorwaarden", "verwerkersovereenkomst", "favicon.ico"].includes(first)) {
+    if (slug && first !== slug && !["_next", "api", "privacy", "voorwaarden", "verwerkersovereenkomst", "cookies", "favicon.ico"].includes(first)) {
       return NextResponse.rewrite(new URL(`/${slug}${path === "/" ? "" : path}${req.nextUrl.search}`, req.url));
     }
     return NextResponse.next();

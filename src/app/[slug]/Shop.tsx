@@ -44,9 +44,10 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
     try { const c = JSON.parse(sessionStorage.getItem(CART_KEY) ?? "null"); if (Array.isArray(c) && c.length) setCart(c); sessionStorage.removeItem(CART_KEY); } catch { /* ignore */ }
   }, [CART_KEY]);
 
-  // Remember the customer's details on this device (convenience only).
+  // Remember the customer's details on this device, only when they ask for it (opt-in, ePrivacy).
+  const [remember, setRemember] = useState(false);
   useEffect(() => {
-    try { const s = JSON.parse(localStorage.getItem(SAVED) ?? "null"); if (s) setF((x) => ({ ...x, ...s, time: x.time, note: "" })); } catch { /* ignore */ }
+    try { const s = JSON.parse(localStorage.getItem(SAVED) ?? "null"); if (s) { setF((x) => ({ ...x, ...s, time: x.time, note: "" })); setRemember(true); } } catch { /* ignore */ }
   }, []);
 
   // Sheets: the phone's back button closes them instead of leaving the page.
@@ -143,7 +144,10 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { setError(data.error ?? "Er ging iets mis. Probeer opnieuw."); setBusy(false); return; }
-    try { const { name, phone, email, address, postcode, city } = f; localStorage.setItem(SAVED, JSON.stringify({ name, phone, email, address, postcode, city })); } catch { /* ignore */ }
+    try {
+      if (remember) { const { name, phone, email, address, postcode, city } = f; localStorage.setItem(SAVED, JSON.stringify({ name, phone, email, address, postcode, city })); }
+      else localStorage.removeItem(SAVED);
+    } catch { /* ignore */ }
     if (data.checkoutUrl) {
       try { sessionStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch { /* ignore */ }
       window.location.href = data.checkoutUrl; // naar Mollie; daarna terug naar de statuspagina
@@ -250,7 +254,7 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
             </section>
           ))}
           <p className="s-alg-note">Allergie of vraag over allergenen? {trader?.phone ? <>Bel {r.name}: <a href={`tel:${trader.phone.replace(/\s/g, "")}`}>{trader.phone}</a>.</> : <>Vraag het aan {r.name}.</>} Vermelde allergenen gelden voor het gerecht zoals beschreven; sporen zijn nooit uit te sluiten.</p>
-          <footer className="s-foot"><span>Bestellen via BestelBon</span><Link href="/privacy">Privacy</Link></footer>
+          <footer className="s-foot"><span>Bestellen via BestelBon</span><Link href="/privacy">Privacy</Link><Link href="/cookies">Cookies</Link></footer>
         </div>
 
         {/* Desktop: cart beside the menu */}
@@ -359,6 +363,10 @@ export default function Shop({ menu, storageUrl }: { menu: Menu; storageUrl: str
               </div>
             )}
             <Field label="Opmerking" hint="optioneel" value={f.note} onChange={(v) => setF({ ...f, note: v })} placeholder={mode === "levering" ? "bv. bel aan bij nr. 2" : "bv. extra servetten"} />
+            <label className="s-remember">
+              <input type="checkbox" checked={remember} onChange={(e) => { setRemember(e.target.checked); if (!e.target.checked) { try { localStorage.removeItem(SAVED); } catch { /* ignore */ } } }} />
+              <span>Onthoud mijn gegevens op dit toestel <small>voor een volgende bestelling. <a href="/cookies" target="_blank" rel="noopener">Meer info</a></small></span>
+            </label>
 
             {online && <>
               <h3>Betalen</h3>

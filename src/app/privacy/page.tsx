@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Legal, { legalSeller, who, SUBPROCESSORS } from "@/components/Legal";
 
 export const revalidate = 3600;
@@ -57,7 +58,7 @@ export default async function Page() {
       <p>Betaal je online, dan verwerkt Mollie B.V. (Amsterdam) je betaling in opdracht van de zaak, op het Mollie-account van de zaak zelf. Mollie is daarvoor zelf verantwoordelijk volgens zijn eigen privacyverklaring. BestelBon ontvangt van Mollie alleen of de betaling gelukt is, geen kaart- of rekeninggegevens.</p>
 
       <h2>7. Cookies</h2>
-      <p>De bestelpagina en de BestelBon-gids zetten geen cookies om je te volgen. De postcode die je in de gids zoekt, gebruiken we alleen om de lijst met zaken te tonen; we koppelen ze niet aan jou. Je laatste postcode en je bestelgegevens worden in je eigen browser onthouden, zodat je ze niet opnieuw hoeft in te vullen. In het beheerpaneel voor zaken gebruiken we alleen een noodzakelijke cookie om je ingelogd te houden.</p>
+      <p>De bestelpagina en de BestelBon-gids zetten geen cookies om je te volgen. De postcode die je in de gids zoekt, gebruiken we alleen om de lijst met zaken te tonen; we koppelen ze niet aan jou. Je laatste postcode wordt in je eigen browser onthouden. Je bestelgegevens alleen als je bij het bestellen &quot;Onthoud mijn gegevens&quot; aanvinkt. In het beheerpaneel voor zaken gebruiken we alleen noodzakelijke cookies om je ingelogd te houden. Alle details staan in ons <Link href="/cookies">cookiebeleid</Link>.</p>
 
       <h2>8. Beveiliging</h2>
       <p>Alle verbindingen zijn versleuteld (HTTPS). Elke zaak ziet alleen haar eigen bestellingen. Wachtwoorden en printersleutels worden niet leesbaar opgeslagen.</p>

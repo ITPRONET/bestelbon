@@ -16,7 +16,7 @@ export default function Legal({ title, children }: { title: string; children: Re
     <>
       <header className="top"><div className="wrap"><Link className="logo" href="/">Bestel<b>Bon</b></Link></div></header>
       <main className="wrap legal">
-        <nav className="legal-nav small"><Link href="/privacy">Privacy</Link><Link href="/voorwaarden">Algemene voorwaarden</Link><Link href="/verwerkersovereenkomst">Verwerkersovereenkomst</Link></nav>
+        <nav className="legal-nav small"><Link href="/privacy">Privacy</Link><Link href="/voorwaarden">Algemene voorwaarden</Link><Link href="/verwerkersovereenkomst">Verwerkersovereenkomst</Link><Link href="/cookies">Cookies</Link></nav>
         <h1>{title}</h1>
         <p className="muted small">Versie van {TERMS_DATE}</p>
         {children}

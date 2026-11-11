@@ -637,3 +637,10 @@ dialog.uitleg video{display:block;width:100%;height:auto;background:#000}
 .kaart-opt{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .kaart-opt select{max-width:100%;flex:1 1 220px}
 .kaart-stats{margin-bottom:16px}.kaart-stats .kpis{margin:0}.kaart-stats .kpi{box-shadow:none;background:var(--bg,#f4f5fb)}
+.s-remember{display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:.92rem}
+.s-remember input{width:20px;height:20px;margin:1px 0 0;accent-color:var(--accent);flex:none}
+.s-remember small{display:block;color:var(--muted,#596088)}
+.ck{position:fixed;left:12px;right:12px;z-index:1000;max-width:520px;margin:0 auto;background:#0b1033;color:#fff;border-radius:14px;padding:12px 14px;display:flex;gap:12px;align-items:center;box-shadow:0 10px 30px #0005;font:600 14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+.ck.bottom{bottom:12px}.ck.top{top:12px}
+.ck p{margin:0;flex:1}.ck a{color:#ffc229}
+.ck button{flex:none;background:#ffc229;color:#0b1033;border:0;border-radius:999px;padding:8px 16px;font:700 14px system-ui,sans-serif;cursor:pointer}
