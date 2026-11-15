@@ -17,7 +17,7 @@ const MAX_ATTEMPTS = 5;
 async function printerFor(token: string) {
   if (!/^[A-Za-z0-9_-]{20,80}$/.test(token)) return null;
   const hash = createHash("sha256").update(token).digest("hex");
-  const { data } = await adminDb().from("printers").select("id, restaurant_id, starprnt_ok").eq("token_hash", hash).maybeSingle();
+  const { data } = await adminDb().from("printers").select("id, restaurant_id, starprnt_ok, last_seen_at").eq("token_hash", hash).maybeSingle();
   return data;
 }
 
@@ -45,7 +45,10 @@ async function batchOf(printerId: string, job: { id: string; order_id: string | 
 export async function POST(_req: Request, { params }: { params: Promise<{ token: string }> }) {
   const p = await printerFor((await params).token);
   if (!p) return new NextResponse("Not found", { status: 404 });
-  await adminDb().from("printers").update({ last_seen_at: new Date().toISOString() }).eq("id", p.id);
+  // Printer pollt elke paar seconden: "laatst gezien" hoeft maar om de 60 s naar de database (minder schrijfwerk).
+  if (!p.last_seen_at || Date.now() - new Date(p.last_seen_at).getTime() > 60_000) {
+    await adminDb().from("printers").update({ last_seen_at: new Date().toISOString() }).eq("id", p.id);
+  }
   const job = await nextJob(p.id);
   // Meerdere bonnen van één bestelling: als één StarPRNT-opdracht (geen pauze tussen keuken- en bezorgbon).
   let combine = !!job && p.starprnt_ok !== false && (await batchOf(p.id, job)).length > 1;

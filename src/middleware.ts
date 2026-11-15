@@ -108,4 +108,5 @@ export async function middleware(req: NextRequest) {
   return res;
 }
 
-export const config = { matcher: ["/((?!_next/static|_next/image).*)"] };
+// Niet voor de printer-polls (api/cloudprnt) en statische bestanden: scheelt een middleware-aanroep per poll.
+export const config = { matcher: ["/((?!_next/static|_next/image|api/cloudprnt|favicon.ico).*)"] };
