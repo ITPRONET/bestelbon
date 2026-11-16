@@ -43,18 +43,18 @@ async function batchOf(printerId: string, job: { id: string; order_id: string | 
 }
 
 export async function POST(_req: Request, { params }: { params: Promise<{ token: string }> }) {
-  const p = await printerFor((await params).token);
-  if (!p) return new NextResponse("Not found", { status: 404 });
-  // Printer pollt elke paar seconden: "laatst gezien" hoeft maar om de 60 s naar de database (minder schrijfwerk).
-  if (!p.last_seen_at || Date.now() - new Date(p.last_seen_at).getTime() > 60_000) {
-    await adminDb().from("printers").update({ last_seen_at: new Date().toISOString() }).eq("id", p.id);
-  }
-  const job = await nextJob(p.id);
+  // De printer pollt elke paar seconden: alles in één databaseaanroep (printer, "laatst gezien", volgende bon).
+  const token = (await params).token;
+  if (!/^[A-Za-z0-9_-]{20,80}$/.test(token)) return new NextResponse("Not found", { status: 404 });
+  const { data } = await adminDb().rpc("cloudprnt_poll", { p_hash: createHash("sha256").update(token).digest("hex") });
+  const r = data as { id: string; starprnt_ok: boolean | null; job: { id: string; created_at: string; fetched_at: string | null } | null; batch: number } | null;
+  if (!r) return new NextResponse("Not found", { status: 404 });
+  const job = r.job;
   // Meerdere bonnen van één bestelling: als één StarPRNT-opdracht (geen pauze tussen keuken- en bezorgbon).
-  let combine = !!job && p.starprnt_ok !== false && (await batchOf(p.id, job)).length > 1;
+  let combine = !!job && r.starprnt_ok !== false && r.batch > 1;
   // Haalt de printer de StarPRNT-opdracht niet op (kent het formaat niet)? Na 20 s terug naar losse PNG-bonnen.
-  if (combine && p.starprnt_ok !== true && !job!.fetched_at && Date.now() - new Date(job!.created_at).getTime() > 20_000) {
-    await adminDb().from("printers").update({ starprnt_ok: false }).eq("id", p.id);
+  if (combine && r.starprnt_ok !== true && !job!.fetched_at && Date.now() - new Date(job!.created_at).getTime() > 20_000) {
+    await adminDb().from("printers").update({ starprnt_ok: false }).eq("id", r.id);
     combine = false;
   }
   return NextResponse.json(

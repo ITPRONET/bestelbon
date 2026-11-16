@@ -9,8 +9,11 @@ export function publicDb() {
 }
 
 /** Server-only client with full rights. Never import this in client components. */
+const makeAdmin = (key: string) => createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+let admin: ReturnType<typeof makeAdmin> | null = null;
 export function adminDb() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY ontbreekt");
-  return createClient(url, key, { auth: { persistSession: false } });
+  // Eén client per serverinstantie (geen sessie, service role): scheelt CPU bij elke aanvraag.
+  return (admin ??= makeAdmin(key));
 }
