@@ -5,6 +5,8 @@ import { adminDb } from "@/lib/supabase";
 import { normVat } from "@/lib/vat";
 import { sendMail } from "@/lib/mail";
 import { signupMail } from "@/lib/signup-mail";
+import { createCustomer, freeSlug } from "@/lib/customers";
+import { TYPES } from "@/lib/admin";
 import { TERMS_VERSION } from "@/lib/legal";
 import { packageOf, setupText } from "@/lib/setup";
 
@@ -56,8 +58,20 @@ export async function POST(req: Request) {
     legal_name: b.legal_name, vat_number: vat.display, contact_name: b.contact_name, street: b.street, postcode: b.postcode, city: b.city,
     email: b.email.toLowerCase(), phone: b.phone, terms_version: TERMS_VERSION, ip_hash,
   };
-  const { error } = await db.from("signups").insert(row);
-  if (error) return NextResponse.json({ error: "Aanmelden is niet gelukt. Probeer opnieuw." }, { status: 500 });
+  const { data: sg, error } = await db.from("signups").insert(row).select("id").single();
+  if (error || !sg) return NextResponse.json({ error: "Aanmelden is niet gelukt. Probeer opnieuw." }, { status: 500 });
+
+  // Meteen een klant aanmaken met login, zodat de uitbater al zijn menu kan invullen.
+  // Bestaat het btw-nummer al, dan doet de beheerder het zelf (geen overname van een bestaand account).
+  const { data: dup } = await db.from("companies").select("id").eq("vat_number", vat.display).maybeSingle();
+  const made = dup ? null : await createCustomer(db, {
+    legal_name: row.legal_name, vat: vat.display, street: row.street, postcode: row.postcode, city: row.city, contact_name: row.contact_name,
+    email: row.email, phone: row.phone, owner_email: row.email, plan: row.plan, billing: row.billing,
+    zaak: row.restaurant_name, slug: await freeSlug(db, row.restaurant_name), type: TYPES.includes(row.restaurant_type ?? "") ? row.restaurant_type! : "Frituur",
+    cable: pk.cable, pl: pk.powerline, adapters: pk.adapters, install_mode: b.setup.install, printer_setup: row.printer_setup,
+    notes: row.message, terms: { version: TERMS_VERSION, at: new Date().toISOString() }, signup_id: sg.id,
+  }).catch((e) => { console.error("auto klant", e); return null; });
+  const panel = made?.ok && made.account !== "geenaccount";
 
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "";
   const summary = [
@@ -67,12 +81,12 @@ export async function POST(req: Request) {
     row.message ? `\nOpmerking: ${row.message}` : "",
   ].join("\n");
   await Promise.all([
-    sendMail({ to: process.env.ADMIN_EMAIL || "info@bestelbon.eu", replyTo: row.email, subject: `Nieuwe aanmelding: ${row.restaurant_name}`, text: `${summary}\n\nBekijk: ${site}/beheer/admin/aanvragen` }),
+    sendMail({ to: process.env.ADMIN_EMAIL || "info@bestelbon.eu", replyTo: row.email, subject: `Nieuwe aanmelding: ${row.restaurant_name}`, text: `${summary}\n\n${made?.ok ? `Klant automatisch aangemaakt (login: ${made.account}). Opstartfactuur nog maken: ${site}/beheer/admin/bedrijf/${made.companyId}` : `Nog geen klant aangemaakt${dup ? " (btw-nummer bestaat al)" : ""}: ${site}/beheer/admin/aanvragen`}` }),
     sendMail({ to: row.email, ...signupMail({
       contact: row.contact_name, zaak: row.restaurant_name, type: row.restaurant_type, plan: row.plan === "pro" ? "pro" : "standaard", billing: row.billing === "jaar" ? "jaar" : "maand",
       printers: setupText(b.setup), start: row.wanted_start, gks: row.gks === "ja" ? "ja" : row.gks === "weet_niet" ? "weet ik nog niet" : "nee",
       legal: row.legal_name, vat: row.vat_number, address: `${row.street}, ${row.postcode} ${row.city}`, phone: row.phone, email: row.email, message: row.message,
-    }, site) }),
+    }, site, panel ? `${site}/beheer/login` : null) }),
   ]);
   return NextResponse.json({ ok: true });
 }

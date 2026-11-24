@@ -13,17 +13,17 @@ const SUB_ROOT = (process.env.SUBDOMAIN_ROOT ?? "").trim().toLowerCase();
 const NOT_A_ZAAK = new Set(["www", "app", "api", "mail", "admin", "beheer"]);
 const SHARED = ["_next", "api", "privacy", "voorwaarden", "verwerkersovereenkomst", "cookies", "favicon.ico"];
 
-let slugCache: { at: number; slugs: Set<string> } | null = null;
+let slugCache: { at: number; slugs: Set<string>; sub: Set<string> } | null = null;
 async function slugs() {
   if (slugCache && Date.now() - slugCache.at < 60_000) return slugCache.slugs;
   try {
-    const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/restaurants?select=slug`;
+    const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/restaurants?select=slug,sub_ok`;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     const res = await fetch(url, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-    const rows = (await res.json()) as { slug: string }[];
-    slugCache = { at: Date.now(), slugs: new Set(rows.map((r) => r.slug)) };
+    const rows = (await res.json()) as { slug: string; sub_ok: boolean }[];
+    slugCache = { at: Date.now(), slugs: new Set(rows.map((r) => r.slug)), sub: new Set(rows.filter((r) => r.sub_ok).map((r) => r.slug)) };
   } catch {
-    slugCache ??= { at: 0, slugs: new Set() };
+    slugCache ??= { at: 0, slugs: new Set(), sub: new Set() };
   }
   return slugCache.slugs;
 }
@@ -76,7 +76,7 @@ export async function middleware(req: NextRequest) {
   if (MAIN_HOSTS.includes(host)) {
     const isSlug = first !== "" && !APP_PATHS.includes(first) && (await slugs()).has(first);
     // Old address bestelbon.eu/frituurdekroon/... -> frituurdekroon.bestelbon.eu/... (QR codes and stickers keep working).
-    if (isSlug && SUB_ROOT && (req.method === "GET" || req.method === "HEAD")) {
+    if (isSlug && SUB_ROOT && slugCache?.sub.has(first) && (req.method === "GET" || req.method === "HEAD")) {
       const rest = path.slice(first.length + 1);
       return NextResponse.redirect(new URL(`https://${first}.${SUB_ROOT}${rest || "/"}${req.nextUrl.search}`), 308);
     }

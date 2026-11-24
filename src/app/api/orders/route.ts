@@ -56,7 +56,7 @@ export async function POST(req: Request) {
   const { count: recent } = await db.from("orders").select("id", { count: "exact", head: true }).eq("ip_hash", ip_hash).gte("created_at", new Date(Date.now() - 15 * 60_000).toISOString());
   if ((recent ?? 0) >= 6) return NextResponse.json({ error: "Te veel bestellingen na elkaar. Wacht even of bel de zaak." }, { status: 429 });
 
-  const { data: r } = await db.from("restaurants").select("id, slug, name, custom_domain, domain_verified, is_open, delivery_fee_cents, min_order_cents, prep_minutes, offers_delivery, offers_pickup, online_required, companies ( blocked_at )").eq("slug", b.slug).maybeSingle();
+  const { data: r } = await db.from("restaurants").select("id, slug, name, custom_domain, domain_verified, sub_ok, is_open, delivery_fee_cents, min_order_cents, prep_minutes, offers_delivery, offers_pickup, online_required, companies ( blocked_at )").eq("slug", b.slug).maybeSingle();
   if (!r || !r.is_open || (r.companies as unknown as { blocked_at: string | null } | null)?.blocked_at) return NextResponse.json({ error: "Deze zaak neemt nu geen online bestellingen aan." }, { status: 409 });
   if (b.mode === "levering" && r.offers_delivery === false) return NextResponse.json({ error: "Deze zaak levert niet. Kies afhalen." }, { status: 400 });
   if (b.mode === "afhalen" && r.offers_pickup === false) return NextResponse.json({ error: "Bij deze zaak kun je niet afhalen. Kies levering." }, { status: 400 });

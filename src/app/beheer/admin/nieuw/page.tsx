@@ -5,14 +5,13 @@ import { eur } from "@/lib/money";
 import { normVat } from "@/lib/vat";
 import { TERMS_VERSION } from "@/lib/legal";
 import { RESERVED_SLUGS } from "@/lib/reserved";
-import { addSubdomain } from "@/lib/vercel";
-import { adminFeeLines, adminFeeWaived, ADMIN_FREE_LABEL } from "@/lib/pricing";
+import { createCustomer, slugify, startInvoice } from "@/lib/customers";
+import { adminFeeWaived, ADMIN_FREE_LABEL } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Nieuwe klant" };
 
 const s = (f: FormData, k: string, n = 100) => String(f.get(k) ?? "").trim().slice(0, n);
-const slugify = (v: string) => v.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "").slice(0, 40);
 
 async function create(f: FormData) {
   "use server";
@@ -32,51 +31,23 @@ async function create(f: FormData) {
   const { data: dup } = await db.from("companies").select("id").eq("vat_number", vat.display).maybeSingle();
   if (dup) redirect(`/beheer/admin/bedrijf/${dup.id}?fout=bestaat`);
 
-  const plan = s(f, "plan") === "pro" ? "pro" : "standaard";
-  const addr = { street: s(f, "street") || null, postcode: s(f, "postcode", 10) || null, city: s(f, "city", 60) || null };
-  const { data: co, error: e1 } = await db.from("companies").insert({
-    legal_name: s(f, "legal_name"), vat_number: vat.display, ...addr, contact_name: s(f, "contact_name", 80) || null,
-    email, phone: s(f, "phone", 30) || null, plan, billing: s(f, "billing") === "jaar" ? "jaar" : "maand", status: "installatie", started_on: s(f, "started_on") || undefined,
-    ...(s(f, "aanvraag") ? { terms_version: s(f, "terms_version") || TERMS_VERSION, terms_accepted_at: s(f, "terms_at") || new Date().toISOString() } : {}),
-  }).select("id").single();
-  if (e1 || !co) back("opslaan");
-  const { data: r, error: e2 } = await db.from("restaurants").insert({
-    company_id: co!.id, name: zaak, slug, type: TYPES.includes(s(f, "type")) ? s(f, "type") : "Frituur", ...addr, phone: s(f, "phone", 30) || null,
-  }).select("id").single();
-  if (e2 || !r) back("opslaan");
-  await addSubdomain(slug).catch(() => null); // frituurdekroon.bestelbon.eu (als VERCEL_TOKEN en SUBDOMAIN_ROOT gezet zijn)
-
-  // Account voor de uitbater: uitnodiging per e-mail, of koppelen als het al bestaat.
-  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-  let uid: string | undefined;
-  const inv = await db.auth.admin.inviteUserByEmail(owner, { redirectTo: `${site}/auth/bevestig` });
-  uid = inv.data.user?.id;
-  if (!uid) {
-    const { data: list } = await db.auth.admin.listUsers({ perPage: 1000 });
-    uid = list?.users.find((u) => u.email?.toLowerCase() === owner)?.id;
-  }
-  if (uid) await db.from("restaurant_members").insert({ restaurant_id: r!.id, user_id: uid, role: "eigenaar" });
-
   const cable = Math.max(0, Math.min(5, Number(s(f, "cable")) || 0));
   const pl = Math.max(0, Math.min(5, Number(s(f, "pl")) || 0));
   const adapters = Math.max(0, Math.min(10, Number(s(f, "adapters")) || (pl ? pl + 1 : 0)));
   const installMode = s(f, "install_mode") === "ter_plaatse" ? "ter_plaatse" : "zelf";
   const { data: sg } = s(f, "aanvraag") ? await db.from("signups").select("printer_setup").eq("id", s(f, "aanvraag")).maybeSingle() : { data: null };
-  await db.from("installations").insert({ company_id: co!.id, restaurant_id: r!.id, printers_cable: cable, printers_wifi: 0, powerline_adapters: adapters, install_mode: installMode, printer_setup: sg?.printer_setup ?? null, planned_on: s(f, "planned_on") || null, status: s(f, "planned_on") ? "gepland" : "te_plannen", notes: s(f, "notes", 500) || null });
-
-  if (f.get("invoice") === "on") {
-    const { data: prices } = await db.from("prices").select("key, label, cents");
-    const p = (k: string) => prices!.find((x) => x.key === k)!;
-    const lines = [
-      cable + pl && { description: p("printer_kabel").label, qty: cable + pl, unit_cents: p("printer_kabel").cents },
-      adapters && prices!.some((x) => x.key === "powerline") && { description: p("powerline").label, qty: adapters, unit_cents: p("powerline").cents },
-      installMode === "ter_plaatse" && { description: p("installatie").label, qty: 1, unit_cents: p("installatie").cents },
-      ...(f.get("admin") === "on" && prices!.some((x) => x.key === "administratie") ? adminFeeLines(p("administratie").label, p("administratie").cents) : []),
-    ].filter(Boolean);
-    if (lines.length) await db.rpc("create_invoice", { p_company: co!.id, p_lines: lines, p_note: `Opstart BestelBon voor ${zaak}` });
-  }
-  if (s(f, "aanvraag")) await db.from("signups").update({ status: "klant", company_id: co!.id }).eq("id", s(f, "aanvraag"));
-  redirect(`/beheer/admin/bedrijf/${co!.id}?nieuw=${uid ? (inv.data.user ? "uitgenodigd" : "gekoppeld") : "geenaccount"}`);
+  const res = await createCustomer(db, {
+    legal_name: s(f, "legal_name"), vat: vat.display, street: s(f, "street") || null, postcode: s(f, "postcode", 10) || null, city: s(f, "city", 60) || null,
+    contact_name: s(f, "contact_name", 80) || null, email, phone: s(f, "phone", 30) || null, owner_email: owner,
+    plan: s(f, "plan") === "pro" ? "pro" : "standaard", billing: s(f, "billing") === "jaar" ? "jaar" : "maand", started_on: s(f, "started_on") || undefined,
+    zaak, slug, type: TYPES.includes(s(f, "type")) ? s(f, "type") : "Frituur",
+    cable, pl, adapters, install_mode: installMode, printer_setup: sg?.printer_setup ?? null, planned_on: s(f, "planned_on") || null, notes: s(f, "notes", 500) || null,
+    terms: s(f, "aanvraag") ? { version: s(f, "terms_version") || TERMS_VERSION, at: s(f, "terms_at") || new Date().toISOString() } : undefined,
+    signup_id: s(f, "aanvraag") || undefined,
+  });
+  if (!res.ok) back("opslaan");
+  if (f.get("invoice") === "on") await startInvoice(db, res.companyId!, zaak, { printers: cable + pl, adapters, onSite: installMode === "ter_plaatse", adminFee: f.get("admin") === "on" });
+  redirect(`/beheer/admin/bedrijf/${res.companyId}?nieuw=${res.account}`);
 }
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ fout?: string; aanvraag?: string }> }) {

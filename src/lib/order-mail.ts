@@ -10,10 +10,10 @@ const euro = (c: number) => "€ " + (c / 100).toFixed(2).replace(".", ",");
 export async function sendOrderReceived(orderId: string) {
   const db = adminDb();
   const { data: o } = await db.from("orders")
-    .select("id, day_number, mode, requested_time, payment_method, payment_status, subtotal_cents, delivery_fee_cents, total_cents, discount_cents, loyalty_stamped, loyalty_redeemed, customer_name, customer_email, address, postcode, city, note, loyalty_cards ( stamps ), restaurants ( name, slug, phone, loyalty_stamps, loyalty_reward, loyalty_value, loyalty_item:menu_items!restaurants_loyalty_item_id_fkey ( name ), street, postcode, city, custom_domain, domain_verified ), order_lines ( item_name, options, qty, unit_cents, id )")
+    .select("id, day_number, mode, requested_time, payment_method, payment_status, subtotal_cents, delivery_fee_cents, total_cents, discount_cents, loyalty_stamped, loyalty_redeemed, customer_name, customer_email, address, postcode, city, note, loyalty_cards ( stamps ), restaurants ( name, slug, phone, loyalty_stamps, loyalty_reward, loyalty_value, loyalty_item:menu_items!restaurants_loyalty_item_id_fkey ( name ), street, postcode, city, custom_domain, domain_verified, sub_ok ), order_lines ( item_name, options, qty, unit_cents, id )")
     .eq("id", orderId).maybeSingle();
   if (!o?.customer_email) return false;
-  const r = o.restaurants as unknown as { name: string; slug: string; phone: string | null; street: string | null; postcode: string | null; city: string | null; custom_domain: string | null; domain_verified: boolean };
+  const r = o.restaurants as unknown as { name: string; slug: string; phone: string | null; street: string | null; postcode: string | null; city: string | null; custom_domain: string | null; domain_verified: boolean; sub_ok: boolean };
   const lines = ((o.order_lines ?? []) as { item_name: string; options: string[]; qty: number; unit_cents: number; id: number }[]).sort((a, b) => a.id - b.id);
   const statusUrl = orderUrl(r.slug, o.id, r);
   const when = o.requested_time && o.requested_time !== "Zo snel mogelijk" ? `om ${o.requested_time}` : "zo snel mogelijk";

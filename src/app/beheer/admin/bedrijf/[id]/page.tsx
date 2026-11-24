@@ -1,4 +1,5 @@
 import { shopUrl } from "@/lib/shop-url";
+import { startInvoice } from "@/lib/customers";
 import { setupText, type Setup } from "@/lib/setup";
 import { BLOCK_REASONS } from "@/lib/pricing";
 import { revalidatePath } from "next/cache";
@@ -42,6 +43,19 @@ async function addInvoice(f: FormData) {
   if (!lines.length) redirect(`/beheer/admin/bedrijf/${id}?fout=lijnen`);
   const { data: inv } = await db.rpc("create_invoice", { p_company: id, p_lines: lines, p_issued: s(f, "issued_on") || undefined, p_note: s(f, "note", 300) || null });
   redirect(inv ? `/beheer/factuur/${inv}` : `/beheer/admin/bedrijf/${id}?fout=factuur`);
+}
+
+async function makeStartInvoice(f: FormData) {
+  "use server";
+  const db = await adminOnly();
+  const id = s(f, "id");
+  const { data: ins } = await db.from("installations").select("printers_cable, powerline_adapters, install_mode, printer_setup, restaurants ( name )").eq("company_id", id).limit(1).maybeSingle();
+  if (!ins) redirect(`/beheer/admin/bedrijf/${id}?fout=factuur`);
+  const setup = ins!.printer_setup as { printers?: number } | null;
+  const ok = await startInvoice(db, id, (ins!.restaurants as unknown as { name: string } | null)?.name ?? "", {
+    printers: setup?.printers ?? ins!.printers_cable ?? 0, adapters: ins!.powerline_adapters ?? 0, onSite: ins!.install_mode === "ter_plaatse", adminFee: f.get("admin") === "on",
+  });
+  redirect(`/beheer/admin/bedrijf/${id}${ok ? "" : "?fout=factuur"}`);
 }
 
 async function saveInstall(f: FormData) {
@@ -141,7 +155,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const { data: co } = await db.from("companies").select("*").eq("id", id).maybeSingle();
   if (!co) notFound();
   const [{ data: rs }, { data: invs }, { data: inst }, { data: prices }] = await Promise.all([
-    db.from("restaurants").select("id, name, slug, type, restaurant_members(user_id, role)").eq("company_id", id).order("name"),
+    db.from("restaurants").select("id, name, slug, type, sub_ok, restaurant_members(user_id, role)").eq("company_id", id).order("name"),
     db.from("invoices").select("id, number, issued_on, due_on, status, total_cents, peppol_status, period, mollie_status").eq("company_id", id).order("seq", { ascending: false }),
     db.from("installations").select("*").eq("company_id", id).order("created_at"),
     db.from("prices").select("key, label, cents").order("cents"),
@@ -175,7 +189,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
                   <b>{r.name} <span className="muted small">· {r.type}</span></b>
                   <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <Link className="btn" href={`/beheer?zaak=${r.slug}`}>Open paneel</Link>
-                    <a className="btn" href={shopUrl(r.slug)} target="_blank" rel="noopener">Bestelpagina</a>
+                    <a className="btn" href={shopUrl(r.slug, r)} target="_blank" rel="noopener">Bestelpagina</a>
                   </span>
                 </div>
                 {(r.restaurant_members as { user_id: string; role: string }[]).map((m) => {
@@ -211,6 +225,12 @@ export default async function Page({ params, searchParams }: { params: Promise<{
                 ); })}</tbody>
               </table></div>
             )}
+            <form action={makeStartInvoice} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", margin: "10px 0" }}>
+              <input type="hidden" name="id" value={id} />
+              <button className="btn">Opstartfactuur maken</button>
+              <label className="check small"><input type="checkbox" name="admin" defaultChecked /> met administratieve kosten</label>
+              <span className="muted small">printers, adapters en installatie volgens de installatie hieronder</span>
+            </form>
             <details className="newinv">
               <summary className="btn btn-primary">+ Nieuwe factuur</summary>
               <form action={addInvoice} style={{ display: "grid", gap: 8, marginTop: 12 }}>
