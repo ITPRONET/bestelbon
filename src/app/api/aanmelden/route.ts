@@ -4,6 +4,7 @@ import { z } from "zod";
 import { adminDb } from "@/lib/supabase";
 import { normVat } from "@/lib/vat";
 import { sendMail } from "@/lib/mail";
+import { signupMail } from "@/lib/signup-mail";
 import { TERMS_VERSION } from "@/lib/legal";
 import { packageOf, setupText } from "@/lib/setup";
 
@@ -67,7 +68,11 @@ export async function POST(req: Request) {
   ].join("\n");
   await Promise.all([
     sendMail({ to: process.env.ADMIN_EMAIL || "info@bestelbon.eu", replyTo: row.email, subject: `Nieuwe aanmelding: ${row.restaurant_name}`, text: `${summary}\n\nBekijk: ${site}/beheer/admin/aanvragen` }),
-    sendMail({ to: row.email, subject: "Je aanmelding bij BestelBon", text: `Beste ${row.contact_name},\n\nBedankt voor je aanmelding. We bellen je binnen één werkdag om alles te overlopen.\n\n${summary}\n\nJe ging akkoord met de algemene voorwaarden (${site}/voorwaarden) en de verwerkersovereenkomst (${site}/verwerkersovereenkomst).\n\nMet vriendelijke groeten,\nBestelBon\ninfo@bestelbon.eu` }),
+    sendMail({ to: row.email, ...signupMail({
+      contact: row.contact_name, zaak: row.restaurant_name, type: row.restaurant_type, plan: row.plan === "pro" ? "pro" : "standaard", billing: row.billing === "jaar" ? "jaar" : "maand",
+      printers: setupText(b.setup), start: row.wanted_start, gks: row.gks === "ja" ? "ja" : row.gks === "weet_niet" ? "weet ik nog niet" : "nee",
+      legal: row.legal_name, vat: row.vat_number, address: `${row.street}, ${row.postcode} ${row.city}`, phone: row.phone, email: row.email, message: row.message,
+    }, site) }),
   ]);
   return NextResponse.json({ ok: true });
 }
