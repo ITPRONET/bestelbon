@@ -39,3 +39,10 @@ export async function domainStatus(name: string) {
   const misconfigured = c?.misconfigured !== false;
   return { ok: verified && !misconfigured, verified, misconfigured, txt: v ? { domain: v.domain as string, value: v.value as string } : null };
 }
+
+/** Subdomain for a zaak (frituurdekroon.bestelbon.eu). bestelbon.eu is already verified, so Vercel only issues the certificate. */
+export async function addSubdomain(slug: string) {
+  const root = (process.env.SUBDOMAIN_ROOT ?? "").trim().toLowerCase();
+  if (!root) return { ok: false, error: "uit" };
+  return addDomain(`${slug}.${root}`);
+}

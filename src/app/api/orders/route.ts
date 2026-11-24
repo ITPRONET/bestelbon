@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { adminDb } from "@/lib/supabase";
 import { queueTickets } from "@/lib/print-jobs";
-import { createPayment, onlineReady, siteUrl } from "@/lib/mollie";
+import { createPayment, onlineReady } from "@/lib/mollie";
+import { orderUrl } from "@/lib/shop-url";
 import { checkRewardCode, findCard, loyaltyRestaurant, phoneKey, rewardDiscount, undoRedeem } from "@/lib/loyalty";
 import { cleanPostcode, findZone, openState, timeSlots, weekMinute } from "@/lib/hours";
 
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
   const { count: recent } = await db.from("orders").select("id", { count: "exact", head: true }).eq("ip_hash", ip_hash).gte("created_at", new Date(Date.now() - 15 * 60_000).toISOString());
   if ((recent ?? 0) >= 6) return NextResponse.json({ error: "Te veel bestellingen na elkaar. Wacht even of bel de zaak." }, { status: 429 });
 
-  const { data: r } = await db.from("restaurants").select("id, slug, name, is_open, delivery_fee_cents, min_order_cents, prep_minutes, offers_delivery, offers_pickup, online_required, companies ( blocked_at )").eq("slug", b.slug).maybeSingle();
+  const { data: r } = await db.from("restaurants").select("id, slug, name, custom_domain, domain_verified, is_open, delivery_fee_cents, min_order_cents, prep_minutes, offers_delivery, offers_pickup, online_required, companies ( blocked_at )").eq("slug", b.slug).maybeSingle();
   if (!r || !r.is_open || (r.companies as unknown as { blocked_at: string | null } | null)?.blocked_at) return NextResponse.json({ error: "Deze zaak neemt nu geen online bestellingen aan." }, { status: 409 });
   if (b.mode === "levering" && r.offers_delivery === false) return NextResponse.json({ error: "Deze zaak levert niet. Kies afhalen." }, { status: 400 });
   if (b.mode === "afhalen" && r.offers_pickup === false) return NextResponse.json({ error: "Bij deze zaak kun je niet afhalen. Kies levering." }, { status: 400 });
@@ -175,7 +176,7 @@ export async function POST(req: Request) {
   if (online) {
     // Betaling bij Mollie op het account van de zaak. Bonnen printen pas als Mollie "betaald" meldt (webhook).
     try {
-      const pay = await createPayment(r.id, { orderId: order.id, number: order.day_number, restaurantName: r.name, cents: total, redirectUrl: `${siteUrl()}/${r.slug}/bestelling/${order.id}` });
+      const pay = await createPayment(r.id, { orderId: order.id, number: order.day_number, restaurantName: r.name, cents: total, redirectUrl: orderUrl(r.slug, order.id, r) });
       if (!pay.checkoutUrl) throw new Error("geen checkout");
       await db.from("orders").update({ mollie_payment_id: pay.id }).eq("id", order.id);
       return NextResponse.json({ id: order.id, number: order.day_number, checkoutUrl: pay.checkoutUrl });

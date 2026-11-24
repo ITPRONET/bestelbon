@@ -8,6 +8,10 @@ const MAIN_HOSTS = (process.env.MAIN_HOSTS ?? "bestelbon.eu").split(",").map((h)
 const OLD_HOSTS = (process.env.OLD_HOSTS ?? "bestelbon-bestelbon1.vercel.app").split(",").map((h) => h.trim());
 const CANONICAL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bestelbon.eu";
 const WP_ORIGIN = process.env.WP_ORIGIN ?? "https://www.bestelbon.eu";
+// Subdomains per zaak (frituurdekroon.bestelbon.eu), on when SUBDOMAIN_ROOT is set.
+const SUB_ROOT = (process.env.SUBDOMAIN_ROOT ?? "").trim().toLowerCase();
+const NOT_A_ZAAK = new Set(["www", "app", "api", "mail", "admin", "beheer"]);
+const SHARED = ["_next", "api", "privacy", "voorwaarden", "verwerkersovereenkomst", "cookies", "favicon.ico"];
 
 let slugCache: { at: number; slugs: Set<string> } | null = null;
 async function slugs() {
@@ -48,17 +52,35 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL(path + req.nextUrl.search, CANONICAL), 308);
   }
 
+  // frituurdekroon.bestelbon.eu: the ordering page of that zaak.
+  if (SUB_ROOT && host.endsWith(`.${SUB_ROOT}`)) {
+    const sub = host.slice(0, -SUB_ROOT.length - 1);
+    if (!sub.includes(".") && !NOT_A_ZAAK.has(sub) && (await slugs()).has(sub)) {
+      if (first !== sub && !SHARED.includes(first)) {
+        return NextResponse.rewrite(new URL(`/${sub}${path === "/" ? "" : path}${req.nextUrl.search}`, req.url));
+      }
+      return NextResponse.next();
+    }
+    if (!NOT_A_ZAAK.has(sub)) return NextResponse.redirect(new URL("/", CANONICAL), 307);
+  }
+
   // Pro: the restaurant's own domain (e.g. bestellen.frituurdekroon.be) shows its ordering page.
   if (!MAIN_HOSTS.includes(host) && !host.endsWith(".vercel.app") && !host.startsWith("localhost")) {
     const slug = await slugForDomain(host);
-    if (slug && first !== slug && !["_next", "api", "privacy", "voorwaarden", "verwerkersovereenkomst", "cookies", "favicon.ico"].includes(first)) {
+    if (slug && first !== slug && !SHARED.includes(first)) {
       return NextResponse.rewrite(new URL(`/${slug}${path === "/" ? "" : path}${req.nextUrl.search}`, req.url));
     }
     return NextResponse.next();
   }
 
   if (MAIN_HOSTS.includes(host)) {
-    const isApp = APP_PATHS.includes(first) || (first !== "" && (await slugs()).has(first));
+    const isSlug = first !== "" && !APP_PATHS.includes(first) && (await slugs()).has(first);
+    // Old address bestelbon.eu/frituurdekroon/... -> frituurdekroon.bestelbon.eu/... (QR codes and stickers keep working).
+    if (isSlug && SUB_ROOT && (req.method === "GET" || req.method === "HEAD")) {
+      const rest = path.slice(first.length + 1);
+      return NextResponse.redirect(new URL(`https://${first}.${SUB_ROOT}${rest || "/"}${req.nextUrl.search}`), 308);
+    }
+    const isApp = APP_PATHS.includes(first) || isSlug;
     if (!isApp) {
       // WordPress recognises proxied requests by this key (see wp-config.php) and then acts as bestelbon.eu.
       const headers = new Headers(req.headers);

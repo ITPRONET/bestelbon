@@ -1,3 +1,4 @@
+import { shopUrl, subRoot } from "@/lib/shop-url";
 import QRCode from "qrcode";
 import { publicDb } from "@/lib/supabase";
 
@@ -10,7 +11,7 @@ export async function GET(req: Request) {
   if (!/^[a-z0-9-]{3,40}$/.test(slug)) return new Response("Onbekend", { status: 400 });
   // Optional custom domain (Pro); only plain https hostnames are accepted.
   // Only our own address, or the verified own domain of this restaurant (no QR codes to arbitrary sites).
-  let target = `${process.env.NEXT_PUBLIC_SITE_URL ?? u.origin}/${slug}`;
+  let target = process.env.NEXT_PUBLIC_SITE_URL || subRoot() ? shopUrl(slug) : `${u.origin}/${slug}`;
   const custom = (u.searchParams.get("u") ?? "").replace(/^https:\/\//, "");
   if (custom) {
     const { data } = await publicDb().from("restaurants").select("custom_domain").eq("slug", slug).eq("domain_verified", true).maybeSingle();

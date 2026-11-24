@@ -1,3 +1,4 @@
+import { shopUrl } from "@/lib/shop-url";
 import PanelNav from "@/components/PanelNav";
 import { panel } from "@/lib/panel";
 import CopyField from "./CopyField";
@@ -10,9 +11,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ z
   const sp = await searchParams;
   const { db, restaurants, current } = await panel(sp.zaak);
   if (!current) return null;
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
   const { data: rd } = await db.from("restaurants").select("custom_domain, domain_verified").eq("id", current.id).single();
-  const url = rd?.custom_domain && rd.domain_verified ? `https://${rd.custom_domain}` : `${base}/${current.slug}`;
+  const url = shopUrl(current.slug, rd);
   const button = `<a href="${url}" target="_blank" rel="noopener" style="display:inline-block;background:#ff6a00;color:#fff;font:600 16px/1 system-ui,sans-serif;padding:14px 22px;border-radius:999px;text-decoration:none">Online bestellen</a>`;
   return (
     <>

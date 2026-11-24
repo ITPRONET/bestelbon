@@ -1,3 +1,4 @@
+import { shopUrl } from "@/lib/shop-url";
 import { setupText, type Setup } from "@/lib/setup";
 import { BLOCK_REASONS } from "@/lib/pricing";
 import { revalidatePath } from "next/cache";
@@ -174,7 +175,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
                   <b>{r.name} <span className="muted small">· {r.type}</span></b>
                   <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <Link className="btn" href={`/beheer?zaak=${r.slug}`}>Open paneel</Link>
-                    <a className="btn" href={`/${r.slug}`} target="_blank" rel="noopener">Bestelpagina</a>
+                    <a className="btn" href={shopUrl(r.slug)} target="_blank" rel="noopener">Bestelpagina</a>
                   </span>
                 </div>
                 {(r.restaurant_members as { user_id: string; role: string }[]).map((m) => {

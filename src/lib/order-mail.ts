@@ -1,3 +1,4 @@
+import { orderUrl } from "@/lib/shop-url";
 import { adminDb } from "./supabase";
 import { sendMail } from "./mail";
 import { rewardLabel } from "./loyalty";
@@ -14,8 +15,7 @@ export async function sendOrderReceived(orderId: string) {
   if (!o?.customer_email) return false;
   const r = o.restaurants as unknown as { name: string; slug: string; phone: string | null; street: string | null; postcode: string | null; city: string | null; custom_domain: string | null; domain_verified: boolean };
   const lines = ((o.order_lines ?? []) as { item_name: string; options: string[]; qty: number; unit_cents: number; id: number }[]).sort((a, b) => a.id - b.id);
-  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bestelbon.eu";
-  const statusUrl = r.custom_domain && r.domain_verified ? `https://${r.custom_domain}/${r.slug}/bestelling/${o.id}` : `${site}/${r.slug}/bestelling/${o.id}`;
+  const statusUrl = orderUrl(r.slug, o.id, r);
   const when = o.requested_time && o.requested_time !== "Zo snel mogelijk" ? `om ${o.requested_time}` : "zo snel mogelijk";
   const what = o.mode === "levering" ? `We leveren ${when}` : `Je kunt je bestelling ${when} afhalen`;
   const pay = o.payment_method === "online" && o.payment_status === "betaald" ? "Betaald online." : `Te betalen bij ${o.mode === "levering" ? "levering" : "afhaling"}: ${euro(o.total_cents)}.`;

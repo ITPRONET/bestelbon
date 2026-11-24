@@ -5,6 +5,7 @@ import { eur } from "@/lib/money";
 import { normVat } from "@/lib/vat";
 import { TERMS_VERSION } from "@/lib/legal";
 import { RESERVED_SLUGS } from "@/lib/reserved";
+import { addSubdomain } from "@/lib/vercel";
 import { adminFeeLines, adminFeeWaived, ADMIN_FREE_LABEL } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +44,7 @@ async function create(f: FormData) {
     company_id: co!.id, name: zaak, slug, type: TYPES.includes(s(f, "type")) ? s(f, "type") : "Frituur", ...addr, phone: s(f, "phone", 30) || null,
   }).select("id").single();
   if (e2 || !r) back("opslaan");
+  await addSubdomain(slug).catch(() => null); // frituurdekroon.bestelbon.eu (als VERCEL_TOKEN en SUBDOMAIN_ROOT gezet zijn)
 
   // Account voor de uitbater: uitnodiging per e-mail, of koppelen als het al bestaat.
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "";
